@@ -1,0 +1,373 @@
+service: maidlink-infra
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  region: ca-central-1  # Closest AWS region to Calgary
+  stage: ${opt:stage, 'dev'}
+
+resources:
+  Resources:
+
+    # ─── VPC ──────────────────────────────────────────────────────────────────
+    MaidLinkVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsHostnames: true
+        EnableDnsSupport: true
+        Tags:
+          - Key: Name
+            Value: maidlink-${self:provider.stage}
+
+    # Two private subnets (different AZs) for RDS Multi-AZ
+    PrivateSubnetA:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+        CidrBlock: 10.0.1.0/24
+        AvailabilityZone: ca-central-1a
+        Tags:
+          - Key: Name
+            Value: maidlink-private-a-${self:provider.stage}
+
+    PrivateSubnetB:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+        CidrBlock: 10.0.2.0/24
+        AvailabilityZone: ca-central-1b
+        Tags:
+          - Key: Name
+            Value: maidlink-private-b-${self:provider.stage}
+
+    # Public subnet for NAT Gateway (allows Lambda outbound internet access)
+    PublicSubnetA:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+        CidrBlock: 10.0.3.0/24
+        AvailabilityZone: ca-central-1a
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: maidlink-public-a-${self:provider.stage}
+
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: maidlink-igw-${self:provider.stage}
+
+    VPCGatewayAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+        InternetGatewayId: !Ref InternetGateway
+
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      DependsOn: VPCGatewayAttachment
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref InternetGateway
+
+    PublicSubnetRouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnetA
+        RouteTableId: !Ref PublicRouteTable
+
+    # NAT Gateway: allows Lambdas in private subnets to reach internet (Google OAuth)
+    EIP:
+      Type: AWS::EC2::EIP
+      Properties:
+        Domain: vpc
+
+    NatGateway:
+      Type: AWS::EC2::NatGateway
+      DependsOn: VPCGatewayAttachment
+      Properties:
+        AllocationId: !GetAtt EIP.AllocationId
+        SubnetId: !Ref PublicSubnetA
+
+    PrivateRouteTableA:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+
+    PrivateRouteA:
+      Type: AWS::EC2::Route
+      Properties:
+        RouteTableId: !Ref PrivateRouteTableA
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId: !Ref NatGateway
+
+    PrivateSubnetARouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PrivateSubnetA
+        RouteTableId: !Ref PrivateRouteTableA
+
+    PrivateRouteTableB:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MaidLinkVPC
+
+    PrivateRouteB:
+      Type: AWS::EC2::Route
+      Properties:
+        RouteTableId: !Ref PrivateRouteTableB
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId: !Ref NatGateway
+
+    PrivateSubnetBRouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PrivateSubnetB
+        RouteTableId: !Ref PrivateRouteTableB
+
+    # ─── Security Groups ─────────────────────────────────────────────────────
+    LambdaSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Lambda functions security group
+        VpcId: !Ref MaidLinkVPC
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+
+    RdsSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: RDS — allow inbound from Lambda only
+        VpcId: !Ref MaidLinkVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            SourceSecurityGroupId: !Ref LambdaSG
+
+    # ─── Aurora Serverless v2 ────────────────────────────────────────────────
+    RdsSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: MaidLink RDS private subnets
+        SubnetIds:
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+
+    # DB credentials in Secrets Manager (auto-generated password)
+    RdsSecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: /maidlink/${self:provider.stage}/rds-credentials
+        Description: MaidLink RDS master credentials
+        GenerateSecretString:
+          SecretStringTemplate: '{"username":"maidlink_app"}'
+          GenerateStringKey: password
+          PasswordLength: 32
+          ExcludeCharacters: '"@/\\'
+
+    RdsCluster:
+      Type: AWS::RDS::DBCluster
+      DeletionPolicy: Snapshot
+      Properties:
+        Engine: aurora-postgresql
+        EngineVersion: '15.4'
+        DatabaseName: maidlink
+        MasterUsername: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:username}}'
+        MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:password}}'
+        DBSubnetGroupName: !Ref RdsSubnetGroup
+        VpcSecurityGroupIds:
+          - !Ref RdsSG
+        ServerlessV2ScalingConfiguration:
+          MinCapacity: 0.5  # Non-zero prevents cold starts on Aurora
+          MaxCapacity: 4
+        BackupRetentionPeriod: 7
+        DeletionProtection: false  # Set true in production
+        EnableCloudwatchLogsExports:
+          - postgresql
+
+    RdsInstance:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        DBClusterIdentifier: !Ref RdsCluster
+        DBInstanceClass: db.serverless
+        Engine: aurora-postgresql
+        PubliclyAccessible: false
+
+    # ─── RDS Proxy ───────────────────────────────────────────────────────────
+    # Prevents Lambda bursts from exhausting Postgres max_connections
+    RdsProxyRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: maidlink-rds-proxy-role-${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: rds.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: SecretsAccess
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                    - secretsmanager:DescribeSecret
+                  Resource: !Ref RdsSecret
+
+    RdsProxy:
+      Type: AWS::RDS::DBProxy
+      DependsOn: RdsInstance
+      Properties:
+        DBProxyName: maidlink-proxy-${self:provider.stage}
+        EngineFamily: POSTGRESQL
+        RoleArn: !GetAtt RdsProxyRole.Arn
+        Auths:
+          - AuthScheme: SECRETS
+            SecretArn: !Ref RdsSecret
+            IAMAuth: DISABLED
+        VpcSubnetIds:
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+        VpcSecurityGroupIds:
+          - !Ref RdsSG
+        RequireTLS: true
+
+    RdsProxyTargetGroup:
+      Type: AWS::RDS::DBProxyTargetGroup
+      Properties:
+        DBProxyName: !Ref RdsProxy
+        TargetGroupName: default
+        DBClusterIdentifiers:
+          - !Ref RdsCluster
+
+    # ─── S3 — Profile Photos ─────────────────────────────────────────────────
+    PhotosBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: maidlink-photos-${self:provider.stage}-${AWS::AccountId}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'   # Restrict to your domain in production
+              AllowedMethods:
+                - GET
+                - PUT
+              AllowedHeaders:
+                - '*'
+              MaxAge: 3600
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOrphanedUploads
+              Status: Enabled
+              # Clean up any uploads not linked to a profile after 7 days
+              NoncurrentVersionExpirationInDays: 7
+
+    # ─── S3 — Frontend Static Hosting ───────────────────────────────────────
+    FrontendBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: maidlink-frontend-${self:provider.stage}-${AWS::AccountId}
+        WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: index.html   # SPA: all 404s handled by React Router
+
+    FrontendBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref FrontendBucket
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                CanonicalUser: !GetAtt FrontendOAI.S3CanonicalUserId
+              Action: s3:GetObject
+              Resource: !Sub '${FrontendBucket.Arn}/*'
+
+    FrontendOAI:
+      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+      Properties:
+        CloudFrontOriginAccessIdentityConfig:
+          Comment: MaidLink frontend OAI
+
+    FrontendDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+          DefaultRootObject: index.html
+          Origins:
+            - Id: S3Origin
+              DomainName: !GetAtt FrontendBucket.RegionalDomainName
+              S3OriginConfig:
+                OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${FrontendOAI}'
+          DefaultCacheBehavior:
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          CustomErrorResponses:
+            # Return index.html for all 403/404 so React Router handles routing
+            - ErrorCode: 403
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+            - ErrorCode: 404
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+          PriceClass: PriceClass_100  # US, Canada, Europe
+
+  Outputs:
+    VpcId:
+      Value: !Ref MaidLinkVPC
+      Export:
+        Name: maidlink-${self:provider.stage}-VpcId
+
+    PrivateSubnetA:
+      Value: !Ref PrivateSubnetA
+      Export:
+        Name: maidlink-${self:provider.stage}-PrivateSubnetA
+
+    PrivateSubnetB:
+      Value: !Ref PrivateSubnetB
+      Export:
+        Name: maidlink-${self:provider.stage}-PrivateSubnetB
+
+    LambdaSG:
+      Value: !Ref LambdaSG
+      Export:
+        Name: maidlink-${self:provider.stage}-LambdaSG
+
+    RdsProxyEndpoint:
+      Value: !GetAtt RdsProxy.Endpoint
+      Export:
+        Name: maidlink-${self:provider.stage}-RdsProxyEndpoint
+
+    PhotosBucketName:
+      Value: !Ref PhotosBucket
+      Export:
+        Name: maidlink-${self:provider.stage}-PhotosBucket
+
+    FrontendDistributionId:
+      Value: !Ref FrontendDistribution
+      Export:
+        Name: maidlink-${self:provider.stage}-FrontendDistributionId
+
+    FrontendUrl:
+      Value: !Sub 'https://${FrontendDistribution.DomainName}'
+      Export:
+        Name: maidlink-${self:provider.stage}-FrontendUrl

@@ -1,0 +1,37 @@
+{
+  "name": "maidlink",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Maid booking platform MVP — monorepo root",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "frontend",
+    "database"
+  ],
+  "scripts": {
+    "dev": "npm run build --workspace=packages/shared && concurrently -n db,auth,users,booking,admin,web -c bgBlue,cyan,green,yellow,magenta,white \"npm run db:up\" \"npm run offline --workspace=services/auth\" \"npm run offline --workspace=services/users\" \"npm run offline --workspace=services/booking\" \"npm run offline --workspace=services/admin\" \"npm run dev --workspace=frontend\"",
+    "db:up": "docker-compose up -d postgres",
+    "db:down": "docker-compose down",
+    "db:logs": "docker-compose logs -f postgres",
+    "db:migrate": "npm run migrate --workspace=database",
+    "db:seed": "npm run seed --workspace=database",
+    "db:reset": "npm run db:down && npm run db:up && sleep 3 && npm run db:migrate && npm run db:seed",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint 'packages/*/src/**/*.ts' 'services/*/src/**/*.ts' 'frontend/src/**/*.{ts,tsx}' --max-warnings=0",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "typescript": "^5.4.5"
+  }
+}

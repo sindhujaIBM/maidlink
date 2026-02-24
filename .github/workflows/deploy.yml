@@ -1,0 +1,136 @@
+name: Deploy to AWS
+
+# Triggered when a PR is merged to main
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ca-central-1
+  STAGE: prod
+
+jobs:
+  # ── Step 1: Deploy shared infrastructure ─────────────────────────────────
+  deploy-infra:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      photos-bucket: ${{ steps.infra-outputs.outputs.photos-bucket }}
+      frontend-dist-id: ${{ steps.infra-outputs.outputs.frontend-dist-id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - run: npm install -g serverless@3
+
+      - name: Deploy infrastructure
+        working-directory: infrastructure
+        run: serverless deploy --stage ${{ env.STAGE }} --verbose
+
+  # ── Step 2: Deploy Lambda services (parallel) ────────────────────────────
+  deploy-services:
+    name: Deploy ${{ matrix.service }} service
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [auth, users, booking, admin]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - run: npm ci
+      - run: npm install -g serverless@3
+
+      - name: Deploy ${{ matrix.service }} service
+        working-directory: services/${{ matrix.service }}
+        run: serverless deploy --stage ${{ env.STAGE }} --verbose
+
+  # ── Step 3: Build and deploy frontend ────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: deploy-services
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_GOOGLE_CLIENT_ID:   ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_REDIRECT_URI: ${{ secrets.VITE_GOOGLE_REDIRECT_URI }}
+          VITE_AUTH_API_URL:        ${{ secrets.VITE_AUTH_API_URL }}
+          VITE_USERS_API_URL:       ${{ secrets.VITE_USERS_API_URL }}
+          VITE_BOOKING_API_URL:     ${{ secrets.VITE_BOOKING_API_URL }}
+          VITE_ADMIN_API_URL:       ${{ secrets.VITE_ADMIN_API_URL }}
+        run: npm run build
+
+      - name: Get frontend S3 bucket name
+        id: get-bucket
+        run: |
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name maidlink-infra-${{ env.STAGE }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucket'].OutputValue" \
+            --output text)
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Sync to S3
+        working-directory: frontend
+        run: |
+          aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+          # index.html should not be long-cached (SPA entry point)
+          aws s3 cp dist/index.html s3://${{ steps.get-bucket.outputs.bucket }}/index.html \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name maidlink-infra-${{ env.STAGE }} \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendDistributionId'].OutputValue" \
+            --output text)
+          aws cloudfront create-invalidation \
+            --distribution-id $DIST_ID \
+            --paths "/*"

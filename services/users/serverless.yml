@@ -1,0 +1,121 @@
+service: maidlink-users
+frameworkVersion: '3'
+useDotenv: true
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ca-central-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 10
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    DB_HOST: ${env:DB_HOST, 'localhost'}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_NAME: ${env:DB_NAME, 'maidlink'}
+    DB_USER: ${env:DB_USER, 'maidlink_dev'}
+    DB_PASSWORD: ${env:DB_PASSWORD, 'devpassword'}
+    DB_SSL: ${env:DB_SSL, 'false'}
+    JWT_SECRET: ${env:JWT_SECRET}
+    PHOTOS_BUCKET: ${env:PHOTOS_BUCKET, 'maidlink-photos-local'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+  # TODO: restore vpc + iam for production deployment
+  # vpc:
+  #   securityGroupIds: [<LAMBDA_SG from infra stack>]
+  #   subnetIds: [<PrivateSubnetA>, <PrivateSubnetB>]
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - arn:aws:s3:::maidlink-photos-*/*
+
+functions:
+  getMyProfile:
+    handler: src/handlers/profile.getHandler
+    events:
+      - http:
+          path: /users/me
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  updateMyProfile:
+    handler: src/handlers/profile.updateHandler
+    events:
+      - http:
+          path: /users/me
+          method: put
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  createMaidProfile:
+    handler: src/handlers/maidProfile.createHandler
+    events:
+      - http:
+          path: /users/me/maid-profile
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getMyMaidProfile:
+    handler: src/handlers/maidProfile.getHandler
+    events:
+      - http:
+          path: /users/me/maid-profile
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  updateMyMaidProfile:
+    handler: src/handlers/maidProfile.updateHandler
+    events:
+      - http:
+          path: /users/me/maid-profile
+          method: put
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getPhotoUploadUrl:
+    handler: src/handlers/photoUpload.handler
+    events:
+      - http:
+          path: /users/me/photo-upload-url
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  listMaids:
+    handler: src/handlers/maids.listHandler
+    events:
+      - http:
+          path: /users/maids
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getMaid:
+    handler: src/handlers/maids.getOneHandler
+    events:
+      - http:
+          path: /users/maids/{maidId}
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node20
+    platform: node
+    external:
+      - pg-native
+  serverless-offline:
+    httpPort: 3002
+    lambdaPort: 3102
+    host: localhost
+    noPrependStageInUrl: true
+    dotenv: ../../.env

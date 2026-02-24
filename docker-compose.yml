@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: maidlink-db
+    environment:
+      POSTGRES_DB: maidlink
+      POSTGRES_USER: maidlink_dev
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Auto-runs all .sql files in migrations/ on first container start
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U maidlink_dev -d maidlink']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

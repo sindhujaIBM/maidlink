@@ -1,0 +1,51 @@
+import { Link } from 'react-router-dom';
+import type { MaidListItem } from '../../api/users';
+
+interface MaidCardProps {
+  maid: MaidListItem;
+}
+
+export function MaidCard({ maid }: MaidCardProps) {
+  const rate = parseFloat(maid.hourlyRate).toFixed(2);
+  const avatar = maid.photoUrl || maid.user.avatarUrl;
+
+  return (
+    <div className="card hover:shadow-md transition-shadow">
+      <div className="flex items-start gap-4">
+        {/* Avatar */}
+        <div className="flex-shrink-0">
+          {avatar
+            ? <img src={avatar} alt={maid.user.fullName} className="h-16 w-16 rounded-full object-cover" />
+            : (
+              <div className="h-16 w-16 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xl font-bold">
+                {maid.user.fullName[0]}
+              </div>
+            )
+          }
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-gray-900">{maid.user.fullName}</h3>
+          <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{maid.bio || 'No bio yet.'}</p>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+            <span className="font-semibold text-brand-700 text-sm">${rate}/hr</span>
+            <span>·</span>
+            <span>{maid.yearsExperience} yr{maid.yearsExperience !== 1 ? 's' : ''} exp</span>
+            <span>·</span>
+            <span>{maid.serviceAreaCodes.slice(0, 3).join(', ')}
+              {maid.serviceAreaCodes.length > 3 ? ' +more' : ''}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <Link to={`/maids/${maid.id}`} className="btn-primary text-sm px-4 py-1.5">
+          View Profile
+        </Link>
+      </div>
+    </div>
+  );
+}

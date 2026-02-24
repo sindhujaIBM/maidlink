@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx serverless offline:*)",
+      "Bash(node -e:*)",
+      "Bash(npm install:*)",
+      "Bash(psql:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(npm run db:seed:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Read(//Users/sindhuja/Desktop/maidlink/**)"
+    ]
+  }
+}

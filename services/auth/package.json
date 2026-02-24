@@ -1,0 +1,26 @@
+{
+  "name": "maidlink-auth",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "offline": "serverless offline",
+    "deploy": "serverless deploy",
+    "build": "esbuild src/handlers/*.ts --bundle --platform=node --target=node20 --outdir=dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@maidlink/shared": "*",
+    "bcryptjs": "^2.4.3",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.137",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.12.5",
+    "esbuild": "^0.21.4",
+    "serverless": "^3.38.0",
+    "serverless-esbuild": "^1.52.1",
+    "serverless-offline": "^13.6.0",
+    "typescript": "^5.4.5"
+  }
+}

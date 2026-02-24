@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.npm
+
+# Build outputs
+dist/
+build/
+.serverless/
+.esbuild/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AWS SAM / Serverless
+.serverless
+samconfig.toml
+
+# Coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite
+frontend/dist/
+
+# Docker (local DB)
+docker-compose.override.yml
+
+# Secrets / local config
+*.pem
+*.key
+*.p12
+secrets/
+
+# Test artifacts
+*.snap

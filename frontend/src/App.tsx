@@ -1,0 +1,60 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { RequireRole } from './components/auth/RequireRole';
+
+// Pages
+import { HomePage }          from './pages/HomePage';
+import { AuthCallback }      from './pages/AuthCallback';
+import { DashboardPage }     from './pages/DashboardPage';
+import { MaidListPage }      from './pages/MaidListPage';
+import { MaidDetailPage }    from './pages/MaidDetailPage';
+import { BookingsPage }      from './pages/BookingsPage';
+import { ProfilePage }       from './pages/ProfilePage';
+import { MaidSetupPage }     from './pages/maid/MaidSetupPage';
+import { AvailabilityPage }  from './pages/maid/AvailabilityPage';
+import { MaidBookingsPage }  from './pages/maid/MaidBookingsPage';
+import { AdminDashboard }    from './pages/admin/AdminDashboard';
+import { AdminMaidsPage }    from './pages/admin/AdminMaidsPage';
+import { AdminBookingsPage } from './pages/admin/AdminBookingsPage';
+import { AdminLoginPage }    from './pages/admin/AdminLoginPage';
+import { DevLoginPage }      from './pages/DevLoginPage';
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public */}
+          <Route path="/"               element={<HomePage />} />
+          <Route path="/auth/callback"  element={<AuthCallback />} />
+          <Route path="/admin/login"    element={<AdminLoginPage />} />
+          <Route path="/dev-login"      element={<DevLoginPage />} />
+
+          {/* Any authenticated user */}
+          <Route path="/dashboard" element={<RequireRole><DashboardPage /></RequireRole>} />
+          <Route path="/bookings"  element={<RequireRole><BookingsPage /></RequireRole>} />
+          <Route path="/profile"   element={<RequireRole><ProfilePage /></RequireRole>} />
+
+          {/* Customer */}
+          <Route path="/maids"      element={<RequireRole><MaidListPage /></RequireRole>} />
+          <Route path="/maids/:maidId" element={<RequireRole><MaidDetailPage /></RequireRole>} />
+
+          {/* Maid-only */}
+          <Route path="/maid/setup"        element={<RequireRole roles={['MAID']}><MaidSetupPage /></RequireRole>} />
+          <Route path="/maid/availability" element={<RequireRole roles={['MAID']}><AvailabilityPage /></RequireRole>} />
+          <Route path="/maid/bookings"     element={<RequireRole roles={['MAID']}><MaidBookingsPage /></RequireRole>} />
+          {/* Allow access to /maid/setup without MAID role so users can apply */}
+          <Route path="/maid/apply"        element={<RequireRole><MaidSetupPage /></RequireRole>} />
+
+          {/* Admin-only */}
+          <Route path="/admin"          element={<RequireRole roles={['ADMIN']}><AdminDashboard /></RequireRole>} />
+          <Route path="/admin/maids"    element={<RequireRole roles={['ADMIN']}><AdminMaidsPage /></RequireRole>} />
+          <Route path="/admin/bookings" element={<RequireRole roles={['ADMIN']}><AdminBookingsPage /></RequireRole>} />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

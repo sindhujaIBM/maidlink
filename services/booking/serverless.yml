@@ -1,0 +1,133 @@
+service: maidlink-booking
+frameworkVersion: '3'
+useDotenv: true
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ca-central-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  # Slightly longer timeout for the booking transaction (SELECT FOR UPDATE + INSERT)
+  timeout: 15
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    DB_HOST: ${env:DB_HOST, 'localhost'}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_NAME: ${env:DB_NAME, 'maidlink'}
+    DB_USER: ${env:DB_USER, 'maidlink_dev'}
+    DB_PASSWORD: ${env:DB_PASSWORD, 'devpassword'}
+    DB_SSL: ${env:DB_SSL, 'false'}
+    JWT_SECRET: ${env:JWT_SECRET}
+  # TODO: restore vpc + iam for production deployment
+  # vpc:
+  #   securityGroupIds: [<LAMBDA_SG from infra stack>]
+  #   subnetIds: [<PrivateSubnetA>, <PrivateSubnetB>]
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: '*'
+
+functions:
+  createBooking:
+    handler: src/handlers/booking.createHandler
+    events:
+      - http:
+          path: /bookings
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  listBookings:
+    handler: src/handlers/booking.listHandler
+    events:
+      - http:
+          path: /bookings
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getBooking:
+    handler: src/handlers/booking.getOneHandler
+    events:
+      - http:
+          path: /bookings/{id}
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  cancelBooking:
+    handler: src/handlers/booking.cancelHandler
+    events:
+      - http:
+          path: /bookings/{id}
+          method: delete
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getMaidSlots:
+    handler: src/handlers/availability.getSlotsHandler
+    events:
+      - http:
+          path: /bookings/maids/{maidId}/slots
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  listAvailability:
+    handler: src/handlers/availability.listHandler
+    events:
+      - http:
+          path: /availabilities
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  createRecurring:
+    handler: src/handlers/availability.createRecurringHandler
+    events:
+      - http:
+          path: /availabilities/recurring
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  deleteRecurring:
+    handler: src/handlers/availability.deleteRecurringHandler
+    events:
+      - http:
+          path: /availabilities/recurring/{id}
+          method: delete
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  createOverride:
+    handler: src/handlers/availability.createOverrideHandler
+    events:
+      - http:
+          path: /availabilities/overrides
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  deleteOverride:
+    handler: src/handlers/availability.deleteOverrideHandler
+    events:
+      - http:
+          path: /availabilities/overrides/{id}
+          method: delete
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node20
+    platform: node
+    external:
+      - pg-native
+  serverless-offline:
+    httpPort: 3003
+    lambdaPort: 3103
+    host: localhost
+    noPrependStageInUrl: true
+    dotenv: ../../.env
