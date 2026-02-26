@@ -1,9 +1,8 @@
 name: Deploy to AWS
 
-# Triggered when a PR is merged to main
+# Disabled — trigger manually from Actions tab when ready
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   AWS_REGION: ca-west-1
