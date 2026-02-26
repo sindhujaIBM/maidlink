@@ -231,6 +231,7 @@ resources:
               NoncurrentVersionExpirationInDays: 7
 
     # ─── S3 — Frontend Static Hosting ───────────────────────────────────────
+    # Public-read bucket — no OAI. CloudFront makes anonymous requests.
     FrontendBucket:
       Type: AWS::S3::Bucket
       Properties:
@@ -245,16 +246,9 @@ resources:
         PolicyDocument:
           Statement:
             - Effect: Allow
-              Principal:
-                CanonicalUser: !GetAtt FrontendOAI.S3CanonicalUserId
+              Principal: '*'
               Action: s3:GetObject
               Resource: !Sub '${FrontendBucket.Arn}/*'
-
-    FrontendOAI:
-      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
-      Properties:
-        CloudFrontOriginAccessIdentityConfig:
-          Comment: MaidLink frontend OAI
 
     FrontendDistribution:
       Type: AWS::CloudFront::Distribution
@@ -266,7 +260,7 @@ resources:
             - Id: S3Origin
               DomainName: !GetAtt FrontendBucket.RegionalDomainName
               S3OriginConfig:
-                OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${FrontendOAI}'
+                OriginAccessIdentity: ''   # empty = no OAI, public-read bucket
           DefaultCacheBehavior:
             TargetOriginId: S3Origin
             ViewerProtocolPolicy: redirect-to-https
@@ -311,6 +305,11 @@ resources:
       Value: !Ref PhotosBucket
       Export:
         Name: maidlink-${self:provider.stage}-PhotosBucket
+
+    FrontendBucketName:
+      Value: !Ref FrontendBucket
+      Export:
+        Name: maidlink-${self:provider.stage}-FrontendBucket
 
     FrontendDistributionId:
       Value: !Ref FrontendDistribution
