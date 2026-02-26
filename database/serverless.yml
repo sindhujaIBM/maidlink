@@ -1,0 +1,45 @@
+service: maidlink-migrate
+frameworkVersion: '3'
+
+plugins:
+  - serverless-esbuild
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ca-west-1
+  stage: prod
+  timeout: 300
+  environment:
+    DB_HOST: maidlink-infra-prod-rdscluster-gcbzimdjjqt2.cluster-cspqotkdhyca.ca-west-1.rds.amazonaws.com
+  vpc:
+    securityGroupIds:
+      - sg-055801edf871f4e60
+    subnetIds:
+      - subnet-0a8738edb8eff6309
+      - subnet-06ab0c4c50c4a06bc
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: '*'
+
+functions:
+  runMigrations:
+    handler: migrate-handler.handler
+
+  runSeeds:
+    handler: seed-handler.handler
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: false
+    target: node20
+    platform: node
+    external:
+      - pg-native
+      - '@aws-sdk/client-secrets-manager'

@@ -3,7 +3,7 @@ frameworkVersion: '3'
 
 provider:
   name: aws
-  region: ca-central-1  # Closest AWS region to Calgary
+  region: ca-west-1  # Calgary region
   stage: ${opt:stage, 'dev'}
 
 resources:
@@ -26,7 +26,7 @@ resources:
       Properties:
         VpcId: !Ref MaidLinkVPC
         CidrBlock: 10.0.1.0/24
-        AvailabilityZone: ca-central-1a
+        AvailabilityZone: ca-west-1a
         Tags:
           - Key: Name
             Value: maidlink-private-a-${self:provider.stage}
@@ -36,7 +36,7 @@ resources:
       Properties:
         VpcId: !Ref MaidLinkVPC
         CidrBlock: 10.0.2.0/24
-        AvailabilityZone: ca-central-1b
+        AvailabilityZone: ca-west-1b
         Tags:
           - Key: Name
             Value: maidlink-private-b-${self:provider.stage}
@@ -47,7 +47,7 @@ resources:
       Properties:
         VpcId: !Ref MaidLinkVPC
         CidrBlock: 10.0.3.0/24
-        AvailabilityZone: ca-central-1a
+        AvailabilityZone: ca-west-1a
         MapPublicIpOnLaunch: true
         Tags:
           - Key: Name
@@ -147,7 +147,7 @@ resources:
     RdsSG:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupDescription: RDS — allow inbound from Lambda only
+        GroupDescription: RDS - allow inbound from Lambda only
         VpcId: !Ref MaidLinkVPC
         SecurityGroupIngress:
           - IpProtocol: tcp
@@ -181,7 +181,7 @@ resources:
       DeletionPolicy: Snapshot
       Properties:
         Engine: aurora-postgresql
-        EngineVersion: '15.4'
+        EngineVersion: '15.8'
         DatabaseName: maidlink
         MasterUsername: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:username}}'
         MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:password}}'
@@ -204,59 +204,10 @@ resources:
         Engine: aurora-postgresql
         PubliclyAccessible: false
 
-    # ─── RDS Proxy ───────────────────────────────────────────────────────────
-    # Prevents Lambda bursts from exhausting Postgres max_connections
-    RdsProxyRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: maidlink-rds-proxy-role-${self:provider.stage}
-        AssumeRolePolicyDocument:
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service: rds.amazonaws.com
-              Action: sts:AssumeRole
-        Policies:
-          - PolicyName: SecretsAccess
-            PolicyDocument:
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - secretsmanager:GetSecretValue
-                    - secretsmanager:DescribeSecret
-                  Resource: !Ref RdsSecret
-
-    RdsProxy:
-      Type: AWS::RDS::DBProxy
-      DependsOn: RdsInstance
-      Properties:
-        DBProxyName: maidlink-proxy-${self:provider.stage}
-        EngineFamily: POSTGRESQL
-        RoleArn: !GetAtt RdsProxyRole.Arn
-        Auths:
-          - AuthScheme: SECRETS
-            SecretArn: !Ref RdsSecret
-            IAMAuth: DISABLED
-        VpcSubnetIds:
-          - !Ref PrivateSubnetA
-          - !Ref PrivateSubnetB
-        VpcSecurityGroupIds:
-          - !Ref RdsSG
-        RequireTLS: true
-
-    RdsProxyTargetGroup:
-      Type: AWS::RDS::DBProxyTargetGroup
-      Properties:
-        DBProxyName: !Ref RdsProxy
-        TargetGroupName: default
-        DBClusterIdentifiers:
-          - !Ref RdsCluster
-
     # ─── S3 — Profile Photos ─────────────────────────────────────────────────
     PhotosBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: maidlink-photos-${self:provider.stage}-${AWS::AccountId}
         CorsConfiguration:
           CorsRules:
             - AllowedOrigins:
@@ -283,7 +234,6 @@ resources:
     FrontendBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: maidlink-frontend-${self:provider.stage}-${AWS::AccountId}
         WebsiteConfiguration:
           IndexDocument: index.html
           ErrorDocument: index.html   # SPA: all 404s handled by React Router
@@ -352,10 +302,10 @@ resources:
       Export:
         Name: maidlink-${self:provider.stage}-LambdaSG
 
-    RdsProxyEndpoint:
-      Value: !GetAtt RdsProxy.Endpoint
+    RdsEndpoint:
+      Value: !GetAtt RdsCluster.Endpoint.Address
       Export:
-        Name: maidlink-${self:provider.stage}-RdsProxyEndpoint
+        Name: maidlink-${self:provider.stage}-RdsEndpoint
 
     PhotosBucketName:
       Value: !Ref PhotosBucket

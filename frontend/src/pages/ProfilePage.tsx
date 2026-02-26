@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMyProfile, updateMyProfile } from '../api/users';
 import { Layout } from '../components/layout/Layout';
 import { Spinner } from '../components/ui/Spinner';
-import { Badge, statusVariant } from '../components/ui/Badge';
+import { Badge } from '../components/ui/Badge';
 import { Link } from 'react-router-dom';
 
 export function ProfilePage() {

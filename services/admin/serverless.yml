@@ -9,7 +9,7 @@ plugins:
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ca-central-1
+  region: ca-west-1
   stage: ${opt:stage, 'dev'}
   memorySize: 256
   timeout: 10
@@ -22,10 +22,12 @@ provider:
     DB_PASSWORD: ${env:DB_PASSWORD, 'devpassword'}
     DB_SSL: ${env:DB_SSL, 'false'}
     JWT_SECRET: ${env:JWT_SECRET}
-  # TODO: restore vpc + iam for production deployment
-  # vpc:
-  #   securityGroupIds: [<LAMBDA_SG from infra stack>]
-  #   subnetIds: [<PrivateSubnetA>, <PrivateSubnetB>]
+  vpc:
+    securityGroupIds:
+      - sg-055801edf871f4e60
+    subnetIds:
+      - subnet-0a8738edb8eff6309
+      - subnet-06ab0c4c50c4a06bc
   iam:
     role:
       statements:

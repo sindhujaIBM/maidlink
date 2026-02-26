@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 
 // Singleton S3 client — reused across Lambda warm invocations
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'ca-central-1',
+  region: process.env.AWS_REGION || 'ca-west-1',
 });
 
 const BUCKET = process.env.PHOTOS_BUCKET!;

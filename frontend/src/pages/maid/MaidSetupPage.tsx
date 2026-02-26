@@ -92,7 +92,7 @@ export function MaidSetupPage() {
             <h2 className="font-semibold text-gray-800 mb-3">Profile Photo</h2>
             <PhotoUpload
               currentPhotoUrl={existingProfile.photoUrl}
-              onUploaded={(s3Key) => qc.invalidateQueries({ queryKey: ['myMaidProfile'] })}
+              onUploaded={(_s3Key) => qc.invalidateQueries({ queryKey: ['myMaidProfile'] })}
             />
           </div>
         )}

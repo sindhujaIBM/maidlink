@@ -5,7 +5,7 @@ import { getMaid } from '../api/users';
 import { getMaidSlots, createBooking } from '../api/bookings';
 import { Layout } from '../components/layout/Layout';
 import { Spinner } from '../components/ui/Spinner';
-import { Badge, statusVariant } from '../components/ui/Badge';
+import { Badge } from '../components/ui/Badge';
 import { Toast } from '../components/ui/Toast';
 import { format, addDays } from 'date-fns';
 
