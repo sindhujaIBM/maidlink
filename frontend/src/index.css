@@ -7,7 +7,8 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    background-color: #f2f5f4;
+    @apply text-gray-900 antialiased;
   }
 }
 
@@ -19,7 +20,7 @@
     @apply btn bg-brand-600 text-white hover:bg-brand-700 focus:ring-brand-500;
   }
   .btn-secondary {
-    @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-400;
+    @apply btn bg-white text-brand-700 border border-brand-300 hover:bg-brand-50 focus:ring-brand-400;
   }
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;

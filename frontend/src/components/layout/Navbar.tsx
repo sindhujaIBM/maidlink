@@ -11,28 +11,28 @@ export function Navbar() {
   }
 
   return (
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <nav className="bg-brand-700 border-b border-brand-800 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 text-xl font-bold text-brand-700">
+          <Link to="/" className="flex items-center gap-2 text-xl font-bold text-white">
             🧹 MaidLink
           </Link>
 
           {/* Nav links */}
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-brand-100">
             {isAuthenticated && (
               <>
-                <Link to="/maids" className="hover:text-brand-600">Browse Maids</Link>
-                <Link to="/bookings" className="hover:text-brand-600">My Bookings</Link>
+                <Link to="/maids" className="hover:text-white">Browse Maids</Link>
+                <Link to="/bookings" className="hover:text-white">My Bookings</Link>
                 {hasRole('MAID') && (
                   <>
-                    <Link to="/maid/availability" className="hover:text-brand-600">My Availability</Link>
-                    <Link to="/maid/bookings" className="hover:text-brand-600">Maid Bookings</Link>
+                    <Link to="/maid/availability" className="hover:text-white">My Availability</Link>
+                    <Link to="/maid/bookings" className="hover:text-white">Maid Bookings</Link>
                   </>
                 )}
                 {hasRole('ADMIN') && (
-                  <Link to="/admin" className="hover:text-red-600">Admin</Link>
+                  <Link to="/admin" className="hover:text-gold-400">Admin</Link>
                 )}
               </>
             )}
@@ -42,19 +42,19 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             {isAuthenticated && user ? (
               <>
-                <Link to="/profile" className="flex items-center gap-2 text-sm text-gray-700 hover:text-brand-600">
+                <Link to="/profile" className="flex items-center gap-2 text-sm text-brand-100 hover:text-white">
                   {user.avatarUrl
                     ? <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full" />
-                    : <div className="h-8 w-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-xs">{user.fullName[0]}</div>
+                    : <div className="h-8 w-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-semibold text-xs">{user.fullName[0]}</div>
                   }
                   <span className="hidden md:block">{user.fullName.split(' ')[0]}</span>
                 </Link>
-                <button onClick={handleLogout} className="btn-secondary text-xs px-3 py-1.5">
+                <button onClick={handleLogout} className="text-xs px-3 py-1.5 rounded-lg border border-brand-400 text-white hover:bg-brand-600 transition-colors">
                   Sign out
                 </button>
               </>
             ) : (
-              <Link to="/" className="btn-primary text-sm">
+              <Link to="/" className="text-sm px-4 py-2 rounded-lg bg-gold-500 text-white font-medium hover:bg-gold-600 transition-colors">
                 Sign in
               </Link>
             )}

@@ -28,7 +28,7 @@ export default function App() {
           <Route path="/"               element={<HomePage />} />
           <Route path="/auth/callback"  element={<AuthCallback />} />
           <Route path="/admin/login"    element={<AdminLoginPage />} />
-          <Route path="/dev-login"      element={<DevLoginPage />} />
+          {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
 
           {/* Any authenticated user */}
           <Route path="/dashboard" element={<RequireRole><DashboardPage /></RequireRole>} />

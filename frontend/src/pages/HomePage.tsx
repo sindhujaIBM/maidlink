@@ -14,22 +14,15 @@ export function HomePage() {
       {/* Simple hero */}
       <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4">
         <div className="text-6xl mb-6">🧹</div>
-        <h1 className="text-5xl font-bold text-gray-900 mb-4">
+        <h1 className="text-5xl font-bold text-brand-800 mb-4">
           MaidLink
         </h1>
-        <p className="text-xl text-gray-500 mb-2 max-w-lg">
+        <p className="text-xl text-brand-600 mb-2 max-w-lg">
           Book trusted home cleaners in Calgary — fast, reliable, and always on time.
         </p>
-        <p className="text-sm text-gray-400 mb-10">
+        <p className="text-sm text-brand-400 mb-10">
           Minimum 3-hour bookings · Calgary-only service area
         </p>
-
-        {/* Dev login shortcut */}
-        {!isAuthenticated && (
-          <Link to="/dev-login" className="mb-4 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
-            Dev login (local only)
-          </Link>
-        )}
 
         {isAuthenticated ? (
           <div className="flex gap-4">

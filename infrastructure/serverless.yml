@@ -1,6 +1,13 @@
 service: maidlink-infra
 frameworkVersion: '3'
 
+custom:
+  # ACM certificate for maidlink.app — MUST be in us-east-1 (CloudFront requirement).
+  # After running: aws acm request-certificate --domain-name maidlink.app
+  #   --subject-alternative-names "*.maidlink.app" --validation-method DNS --region us-east-1
+  # fill in the ARN returned below, then: cd infrastructure && npx serverless deploy --stage prod
+  acmCertArn: 'arn:aws:acm:us-east-1:946839354953:certificate/557d4f22-5a8b-4c7d-893c-6eb511894723'
+
 provider:
   name: aws
   region: ca-west-1  # Calgary region
@@ -255,6 +262,9 @@ resources:
       Properties:
         DistributionConfig:
           Enabled: true
+          Aliases:
+            - maidlink.app
+            - www.maidlink.app
           DefaultRootObject: index.html
           Origins:
             - Id: S3Origin
@@ -265,6 +275,10 @@ resources:
             TargetOriginId: S3Origin
             ViewerProtocolPolicy: redirect-to-https
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          ViewerCertificate:
+            AcmCertificateArn: ${self:custom.acmCertArn}
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
           CustomErrorResponses:
             # Return index.html for all 403/404 so React Router handles routing
             - ErrorCode: 403
