@@ -20,6 +20,21 @@ export async function rejectMaid(maidId: string, reason: string) {
   return res.data.data;
 }
 
+export async function verifyMaid(maidId: string) {
+  const res = await adminClient.post(`/admin/maids/${maidId}/verify`);
+  return res.data.data;
+}
+
+export async function unverifyMaid(maidId: string) {
+  const res = await adminClient.post(`/admin/maids/${maidId}/unverify`);
+  return res.data.data;
+}
+
+export async function getAdminIdDocUrl(maidId: string) {
+  const res = await adminClient.get(`/admin/maids/${maidId}/id-doc-url`);
+  return res.data.data as { url: string };
+}
+
 export async function listAdminBookings(params?: { status?: string; page?: number }) {
   const res = await adminClient.get('/admin/bookings', { params });
   return res.data.data as AdminBooking[];
@@ -40,6 +55,9 @@ export interface AdminMaid {
   rejectedReason: string | null;
   approvedAt: string | null;
   approvedByName: string | null;
+  isVerified: boolean;
+  hasIdDoc: boolean;
+  verifiedAt: string | null;
   createdAt: string;
   user: {
     id: string;

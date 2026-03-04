@@ -90,6 +90,14 @@ functions:
           method: get
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  getIdDocUploadUrl:
+    handler: src/handlers/idDocUpload.handler
+    events:
+      - http:
+          path: /users/me/id-doc-upload-url
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
   listMaids:
     handler: src/handlers/maids.listHandler
     events:

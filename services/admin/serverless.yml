@@ -22,6 +22,8 @@ provider:
     DB_PASSWORD: ${env:DB_PASSWORD, 'devpassword'}
     DB_SSL: ${env:DB_SSL, 'false'}
     JWT_SECRET: ${env:JWT_SECRET}
+    PHOTOS_BUCKET: ${env:PHOTOS_BUCKET, 'maidlink-photos-local'}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
   vpc:
     securityGroupIds:
       - sg-055801edf871f4e60
@@ -35,6 +37,11 @@ provider:
           Action:
             - secretsmanager:GetSecretValue
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+          Resource:
+            - arn:aws:s3:::maidlink-photos-*/*
 
 functions:
   listAdminMaids:
@@ -59,6 +66,30 @@ functions:
       - http:
           path: /admin/maids/{maidId}/reject
           method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  verifyMaid:
+    handler: src/handlers/maids.verifyHandler
+    events:
+      - http:
+          path: /admin/maids/{maidId}/verify
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  unverifyMaid:
+    handler: src/handlers/maids.unverifyHandler
+    events:
+      - http:
+          path: /admin/maids/{maidId}/unverify
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getMaidIdDocUrl:
+    handler: src/handlers/maids.getIdDocUrlHandler
+    events:
+      - http:
+          path: /admin/maids/{maidId}/id-doc-url
+          method: get
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
   listAdminBookings:

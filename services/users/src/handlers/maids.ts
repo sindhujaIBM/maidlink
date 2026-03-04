@@ -38,12 +38,22 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
       mp.service_area_codes,
       mp.years_experience,
       mp.photo_s3_key,
+      mp.is_verified,
       mp.created_at,
       u.id        AS user_id,
       u.full_name AS full_name,
-      u.avatar_url
+      u.avatar_url,
+      COALESCE(r.avg_rating, 0)::numeric  AS avg_rating,
+      COALESCE(r.review_count, 0)::int    AS review_count
     FROM maid_profiles mp
     JOIN users u ON u.id = mp.user_id
+    LEFT JOIN (
+      SELECT maid_id,
+             ROUND(AVG(rating), 1) AS avg_rating,
+             COUNT(*)::int          AS review_count
+      FROM reviews
+      GROUP BY maid_id
+    ) r ON r.maid_id = mp.id
     WHERE ${conditions.join(' AND ')}
     ORDER BY mp.created_at DESC
     LIMIT $${idx++} OFFSET $${idx++}
@@ -59,6 +69,9 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
       hourlyRate:       row.hourly_rate,
       serviceAreaCodes: row.service_area_codes,
       yearsExperience:  row.years_experience,
+      isVerified:       row.is_verified,
+      avgRating:        row.avg_rating,
+      reviewCount:      row.review_count,
       photoUrl:         await getPhotoUrl(row.photo_s3_key as string | null),
       createdAt:        row.created_at,
       user: {
@@ -83,9 +96,18 @@ export const getOneHandler = withAuth(async (event: APIGatewayProxyEvent) => {
        u.id        AS user_id,
        u.full_name AS full_name,
        u.email,
-       u.avatar_url
+       u.avatar_url,
+       COALESCE(r.avg_rating, 0)::numeric  AS avg_rating,
+       COALESCE(r.review_count, 0)::int    AS review_count
      FROM maid_profiles mp
      JOIN users u ON u.id = mp.user_id
+     LEFT JOIN (
+       SELECT maid_id,
+              ROUND(AVG(rating), 1) AS avg_rating,
+              COUNT(*)::int          AS review_count
+       FROM reviews
+       GROUP BY maid_id
+     ) r ON r.maid_id = mp.id
      WHERE mp.id = $1 AND mp.status = 'APPROVED'`,
     [maidId]
   );
@@ -108,6 +130,9 @@ export const getOneHandler = withAuth(async (event: APIGatewayProxyEvent) => {
     hourlyRate:       row.hourly_rate,
     serviceAreaCodes: row.service_area_codes,
     yearsExperience:  row.years_experience,
+    isVerified:       row.is_verified,
+    avgRating:        row.avg_rating,
+    reviewCount:      row.review_count,
     photoUrl,
     createdAt:        row.created_at,
     user: {

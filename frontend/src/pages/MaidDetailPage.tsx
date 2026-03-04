@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMaid } from '../api/users';
-import { getMaidSlots, createBooking } from '../api/bookings';
+import { getMaidSlots, createBooking, getMaidReviews } from '../api/bookings';
 import { Layout } from '../components/layout/Layout';
 import { Spinner } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { Toast } from '../components/ui/Toast';
+import { StarRating } from '../components/ui/StarRating';
+import { VerifiedBadge } from '../components/ui/VerifiedBadge';
 import { format, addDays } from 'date-fns';
 
 const DAY_LABELS: Record<string, string> = {
@@ -32,6 +34,12 @@ export function MaidDetailPage() {
   const { data: rawSlots = [] } = useQuery({
     queryKey: ['slots', maidId, fromDate, toDate],
     queryFn:  () => getMaidSlots(maidId!, fromDate, toDate),
+    enabled:  !!maidId,
+  });
+
+  const { data: reviewsData } = useQuery({
+    queryKey: ['maidReviews', maidId],
+    queryFn:  () => getMaidReviews(maidId!, { limit: 5 }),
     enabled:  !!maidId,
   });
 
@@ -82,6 +90,7 @@ export function MaidDetailPage() {
   if (!maid)     return <Layout><p className="text-center py-20 text-gray-500">Maid not found.</p></Layout>;
 
   const rate = parseFloat(maid.hourlyRate).toFixed(2);
+  const avgRating = parseFloat(maid.avgRating);
 
   return (
     <Layout>
@@ -98,7 +107,18 @@ export function MaidDetailPage() {
                 }
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{maid.user.fullName}</h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-2xl font-bold text-gray-900">{maid.user.fullName}</h1>
+                  {maid.isVerified && <VerifiedBadge />}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <StarRating rating={avgRating} size="sm" />
+                  <span className="text-sm text-gray-500">
+                    {avgRating > 0
+                      ? `${avgRating.toFixed(1)} · ${maid.reviewCount} review${maid.reviewCount !== 1 ? 's' : ''}`
+                      : 'No reviews yet'}
+                  </span>
+                </div>
                 <p className="text-brand-700 font-semibold text-lg mt-1">${rate}/hr</p>
                 <p className="text-sm text-gray-500 mt-1">{maid.yearsExperience} years experience</p>
                 <div className="flex flex-wrap gap-1 mt-2">
@@ -130,6 +150,29 @@ export function MaidDetailPage() {
               )
             }
           </div>
+
+          {/* Reviews */}
+          {reviewsData && reviewsData.reviews.length > 0 && (
+            <div className="card">
+              <h2 className="font-semibold text-gray-900 mb-4">
+                Reviews ({reviewsData.total})
+              </h2>
+              <div className="space-y-4">
+                {reviewsData.reviews.map(r => (
+                  <div key={r.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">{r.customerName}</span>
+                      <span className="text-xs text-gray-400">{format(new Date(r.createdAt), 'MMM d, yyyy')}</span>
+                    </div>
+                    <div className="mt-1">
+                      <StarRating rating={r.rating} size="sm" />
+                    </div>
+                    {r.comment && <p className="mt-1.5 text-sm text-gray-600">{r.comment}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Right: Booking form ── */}

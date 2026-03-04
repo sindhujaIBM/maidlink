@@ -107,6 +107,7 @@ export const updateHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
     serviceAreaCodes?: string[];
     yearsExperience?: number;
     photoS3Key?: string;
+    idDocS3Key?: string;
   };
 
   const { rows: [existing] } = await getPool().query(
@@ -131,6 +132,7 @@ export const updateHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
   }
   if (body.yearsExperience !== undefined) { fields.push(`years_experience = $${idx++}`); values.push(body.yearsExperience); }
   if (body.photoS3Key !== undefined)      { fields.push(`photo_s3_key = $${idx++}`);     values.push(body.photoS3Key); }
+  if (body.idDocS3Key !== undefined)      { fields.push(`id_doc_s3_key = $${idx++}`);    values.push(body.idDocS3Key); }
 
   if (fields.length === 0) throw new ValidationError('No fields to update');
 

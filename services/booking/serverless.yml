@@ -70,6 +70,38 @@ functions:
           method: delete
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  completeBooking:
+    handler: src/handlers/booking.completeHandler
+    events:
+      - http:
+          path: /bookings/{id}/complete
+          method: patch
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getEarnings:
+    handler: src/handlers/earnings.getEarningsHandler
+    events:
+      - http:
+          path: /bookings/earnings
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  createReview:
+    handler: src/handlers/review.createHandler
+    events:
+      - http:
+          path: /bookings/{id}/review
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  listMaidReviews:
+    handler: src/handlers/review.listByMaidHandler
+    events:
+      - http:
+          path: /reviews/maids/{maidId}
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
   getMaidSlots:
     handler: src/handlers/availability.getSlotsHandler
     events:

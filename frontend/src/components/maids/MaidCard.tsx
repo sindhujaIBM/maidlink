@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { MaidListItem } from '../../api/users';
+import { StarRating } from '../ui/StarRating';
+import { VerifiedBadge } from '../ui/VerifiedBadge';
 
 interface MaidCardProps {
   maid: MaidListItem;
@@ -8,6 +10,7 @@ interface MaidCardProps {
 export function MaidCard({ maid }: MaidCardProps) {
   const rate = parseFloat(maid.hourlyRate).toFixed(2);
   const avatar = maid.photoUrl || maid.user.avatarUrl;
+  const avgRating = parseFloat(maid.avgRating);
 
   return (
     <div className="card hover:shadow-md transition-shadow">
@@ -26,10 +29,22 @@ export function MaidCard({ maid }: MaidCardProps) {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900">{maid.user.fullName}</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-gray-900">{maid.user.fullName}</h3>
+            {maid.isVerified && <VerifiedBadge />}
+          </div>
           <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{maid.bio || 'No bio yet.'}</p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <div className="mt-2 flex items-center gap-1.5">
+            <StarRating rating={avgRating} size="sm" />
+            <span className="text-xs text-gray-500">
+              {avgRating > 0
+                ? `${avgRating.toFixed(1)} (${maid.reviewCount})`
+                : 'No reviews yet'}
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
             <span className="font-semibold text-brand-700 text-sm">${rate}/hr</span>
             <span>·</span>
             <span>{maid.yearsExperience} yr{maid.yearsExperience !== 1 ? 's' : ''} exp</span>

@@ -29,6 +29,7 @@ export function Navbar() {
                   <>
                     <Link to="/maid/availability" className="hover:text-white">My Availability</Link>
                     <Link to="/maid/bookings" className="hover:text-white">Maid Bookings</Link>
+                    <Link to="/maid/earnings" className="hover:text-white">Earnings</Link>
                   </>
                 )}
                 {hasRole('ADMIN') && (

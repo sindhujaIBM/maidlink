@@ -29,6 +29,26 @@ export async function cancelBooking(id: string) {
   await bookingClient.delete(`/bookings/${id}`);
 }
 
+export async function completeBooking(id: string) {
+  const res = await bookingClient.patch(`/bookings/${id}/complete`);
+  return res.data.data as Booking;
+}
+
+export async function createReview(bookingId: string, data: { rating: number; comment?: string }) {
+  const res = await bookingClient.post(`/bookings/${bookingId}/review`, data);
+  return res.data.data as Review;
+}
+
+export async function getMaidReviews(maidId: string, params?: { page?: number; limit?: number }) {
+  const res = await bookingClient.get(`/reviews/maids/${maidId}`, { params });
+  return res.data.data as { reviews: Review[]; total: number; page: number; limit: number };
+}
+
+export async function getEarnings() {
+  const res = await bookingClient.get('/bookings/earnings');
+  return res.data.data as EarningsSummary;
+}
+
 // ── Availability ─────────────────────────────────────────────────────────────
 
 export async function getMaidSlots(maidId: string, fromDate: string, toDate: string) {
@@ -91,6 +111,41 @@ export interface Booking {
   createdAt: string;
   customerName?: string;
   maidName?: string;
+}
+
+export interface Review {
+  id: string;
+  bookingId: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  customerName?: string;
+  customerAvatar?: string | null;
+}
+
+export interface EarningsSummary {
+  summary: {
+    totalEarned: string;
+    thisMonthEarned: string;
+    pendingEarnings: string;
+    completedCount: number;
+    upcomingCount: number;
+  };
+  completedBookings: Array<{
+    id: string;
+    startAt: string;
+    endAt: string;
+    totalPrice: string;
+    customerName: string;
+    createdAt: string;
+  }>;
+  upcomingBookings: Array<{
+    id: string;
+    startAt: string;
+    endAt: string;
+    totalPrice: string;
+    customerName: string;
+  }>;
 }
 
 export interface RecurringSlot {

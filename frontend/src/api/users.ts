@@ -52,6 +52,7 @@ export async function updateMaidProfile(data: {
   serviceAreaCodes?: string[];
   yearsExperience?: number;
   photoS3Key?: string;
+  idDocS3Key?: string;
 }) {
   const res = await usersClient.put('/users/me/maid-profile', data);
   return res.data.data;
@@ -73,6 +74,19 @@ export async function uploadPhotoToS3(uploadUrl: string, file: File) {
   });
 }
 
+export async function getIdDocUploadUrl() {
+  const res = await usersClient.get('/users/me/id-doc-upload-url');
+  return res.data.data as { uploadUrl: string; s3Key: string };
+}
+
+/** Uploads an ID document directly to S3 via a pre-signed PUT URL. */
+export async function uploadIdDocToS3(uploadUrl: string, file: File) {
+  await fetch(uploadUrl, {
+    method: 'PUT',
+    body:   file,
+  });
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface MaidListItem {
@@ -81,6 +95,9 @@ export interface MaidListItem {
   hourlyRate: string;
   serviceAreaCodes: string[];
   yearsExperience: number;
+  isVerified: boolean;
+  avgRating: string;
+  reviewCount: number;
   photoUrl: string | null;
   createdAt: string;
   user: { id: string; fullName: string; avatarUrl: string | null };

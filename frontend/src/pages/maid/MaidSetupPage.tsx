@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMyMaidProfile, createMaidProfile, updateMaidProfile } from '../../api/users';
+import { getMyMaidProfile, createMaidProfile, updateMaidProfile, getIdDocUploadUrl, uploadIdDocToS3 } from '../../api/users';
 import { refreshToken } from '../../api/auth';
 import { useAuth } from '../../contexts/AuthContext';
 import { CALGARY_FSA_CODES } from '../../constants/calgary';
 import { Layout } from '../../components/layout/Layout';
 import { Badge, statusVariant } from '../../components/ui/Badge';
+import { VerifiedBadge } from '../../components/ui/VerifiedBadge';
 import { PhotoUpload } from '../../components/profile/PhotoUpload';
 import { Spinner } from '../../components/ui/Spinner';
 
@@ -28,6 +29,10 @@ export function MaidSetupPage() {
   const [serviceCodes, setServiceCodes] = useState<string[]>(existingProfile?.service_area_codes || []);
   const [experience, setExperience]     = useState(String(existingProfile?.years_experience || '0'));
   const [error, setError]               = useState<string | null>(null);
+  const [idDocUploading, setIdDocUploading] = useState(false);
+  const [idDocError, setIdDocError]         = useState<string | null>(null);
+  const [idDocUploaded, setIdDocUploaded]   = useState(!!existingProfile?.id_doc_s3_key);
+  const idDocRef = useRef<HTMLInputElement>(null);
 
   const saveMutation = useMutation({
     mutationFn: isNew
@@ -50,6 +55,25 @@ export function MaidSetupPage() {
       setError(msg);
     },
   });
+
+  async function handleIdDocChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setIdDocError('File must be under 10 MB'); return; }
+
+    setIdDocError(null);
+    setIdDocUploading(true);
+    try {
+      const { uploadUrl, s3Key } = await getIdDocUploadUrl();
+      await uploadIdDocToS3(uploadUrl, file);
+      await updateMaidProfile({ idDocS3Key: s3Key });
+      setIdDocUploaded(true);
+    } catch {
+      setIdDocError('Upload failed. Please try again.');
+    } finally {
+      setIdDocUploading(false);
+    }
+  }
 
   function toggleCode(code: string) {
     setServiceCodes(prev =>
@@ -94,6 +118,47 @@ export function MaidSetupPage() {
               currentPhotoUrl={existingProfile.photoUrl}
               onUploaded={(_s3Key) => qc.invalidateQueries({ queryKey: ['myMaidProfile'] })}
             />
+          </div>
+        )}
+
+        {existingProfile && !isNew && (
+          <div className="card mb-6">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-semibold text-gray-800">ID Verification</h2>
+              {existingProfile.is_verified && <VerifiedBadge />}
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Upload a government-issued photo ID. Admins review it manually and grant a Verified badge once confirmed.
+            </p>
+            <div className="flex items-center gap-4">
+              <div>
+                {existingProfile.is_verified ? (
+                  <p className="text-sm text-green-700 font-medium">Identity verified</p>
+                ) : idDocUploaded ? (
+                  <p className="text-sm text-yellow-700">Document submitted — pending admin review</p>
+                ) : (
+                  <p className="text-sm text-gray-500">Not submitted</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => idDocRef.current?.click()}
+                  disabled={idDocUploading || existingProfile.is_verified}
+                  className="mt-2 btn-secondary text-sm disabled:opacity-50"
+                >
+                  {idDocUploading ? <Spinner size="sm" /> : null}
+                  {idDocUploading ? 'Uploading…' : idDocUploaded ? 'Replace Document' : 'Upload ID Document'}
+                </button>
+                <p className="mt-1 text-xs text-gray-400">PDF, JPEG, or PNG · max 10 MB</p>
+                {idDocError && <p className="mt-1 text-xs text-red-600">{idDocError}</p>}
+                <input
+                  ref={idDocRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,application/pdf"
+                  onChange={handleIdDocChange}
+                  className="hidden"
+                />
+              </div>
+            </div>
           </div>
         )}
 

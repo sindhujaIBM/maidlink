@@ -1,9 +1,12 @@
 /**
  * Admin: maid management
  *
- * GET  /admin/maids                     — list maids (filterable by status)
- * POST /admin/maids/:maidId/approve     — approve maid
- * POST /admin/maids/:maidId/reject      — reject maid with reason
+ * GET  /admin/maids                        — list maids (filterable by status)
+ * POST /admin/maids/:maidId/approve        — approve maid
+ * POST /admin/maids/:maidId/reject         — reject maid with reason
+ * POST /admin/maids/:maidId/verify         — mark maid as verified
+ * POST /admin/maids/:maidId/unverify       — remove verification
+ * GET  /admin/maids/:maidId/id-doc-url     — get pre-signed URL to view maid's ID document
  */
 
 import type { APIGatewayProxyEvent } from 'aws-lambda';
@@ -11,6 +14,7 @@ import {
   withAuth, ok, getPool,
   ValidationError, NotFoundError,
 } from '@maidlink/shared';
+import { getIdDocViewUrl } from '../lib/s3';
 
 export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
   const { status = 'PENDING', page = '1', limit = '50' } =
@@ -53,6 +57,9 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
       rejectedReason:  r.rejected_reason,
       approvedAt:      r.approved_at,
       approvedByName:  r.approved_by_name,
+      isVerified:      r.is_verified,
+      hasIdDoc:        !!r.id_doc_s3_key,
+      verifiedAt:      r.verified_at,
       createdAt:       r.created_at,
       user: {
         id:         r.user_id,
@@ -117,4 +124,64 @@ export const rejectHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
   );
 
   return ok(updated);
+}, ['ADMIN']);
+
+export const verifyHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
+  const maidId = event.pathParameters?.maidId;
+  if (!maidId) throw new ValidationError('maidId is required');
+
+  const pool = getPool();
+  const { rows: [maid] } = await pool.query(
+    'SELECT id FROM maid_profiles WHERE id = $1',
+    [maidId]
+  );
+  if (!maid) throw new NotFoundError('Maid profile not found');
+
+  const { rows: [updated] } = await pool.query(
+    `UPDATE maid_profiles
+     SET is_verified = TRUE, verified_by = $1, verified_at = NOW()
+     WHERE id = $2
+     RETURNING id, is_verified, verified_at`,
+    [auth.userId, maidId]
+  );
+
+  return ok(updated);
+}, ['ADMIN']);
+
+export const unverifyHandler = withAuth(async (event: APIGatewayProxyEvent) => {
+  const maidId = event.pathParameters?.maidId;
+  if (!maidId) throw new ValidationError('maidId is required');
+
+  const pool = getPool();
+  const { rows: [maid] } = await pool.query(
+    'SELECT id FROM maid_profiles WHERE id = $1',
+    [maidId]
+  );
+  if (!maid) throw new NotFoundError('Maid profile not found');
+
+  const { rows: [updated] } = await pool.query(
+    `UPDATE maid_profiles
+     SET is_verified = FALSE, verified_by = NULL, verified_at = NULL
+     WHERE id = $1
+     RETURNING id, is_verified`,
+    [maidId]
+  );
+
+  return ok(updated);
+}, ['ADMIN']);
+
+export const getIdDocUrlHandler = withAuth(async (event: APIGatewayProxyEvent) => {
+  const maidId = event.pathParameters?.maidId;
+  if (!maidId) throw new ValidationError('maidId is required');
+
+  const pool = getPool();
+  const { rows: [maid] } = await pool.query(
+    'SELECT id_doc_s3_key FROM maid_profiles WHERE id = $1',
+    [maidId]
+  );
+  if (!maid) throw new NotFoundError('Maid profile not found');
+  if (!maid.id_doc_s3_key) throw new NotFoundError('No ID document uploaded for this maid');
+
+  const url = await getIdDocViewUrl(maid.id_doc_s3_key);
+  return ok({ url });
 }, ['ADMIN']);

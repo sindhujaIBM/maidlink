@@ -215,6 +215,59 @@ export const getOneHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
   return ok(formatBookingWithNames(row));
 });
 
+// ─── PATCH /bookings/:id/complete ────────────────────────────────────────────
+
+export const completeHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
+  const id = event.pathParameters?.id;
+  if (!id) throw new NotFoundError('Booking ID is required');
+
+  const pool = getPool();
+  const { rows: [booking] } = await pool.query(
+    `SELECT b.*, mp.user_id AS maid_user_id
+     FROM bookings b
+     JOIN maid_profiles mp ON mp.id = b.maid_id
+     WHERE b.id = $1`,
+    [id]
+  );
+
+  if (!booking) throw new NotFoundError('Booking not found');
+
+  const isMaidOwner = booking.maid_user_id === auth.userId;
+  const isCustomer  = booking.customer_id === auth.userId;
+  const isAdmin     = auth.roles.includes('ADMIN');
+  if (!isMaidOwner && !isCustomer && !isAdmin) {
+    throw new ForbiddenError('Access denied');
+  }
+
+  if (booking.status === 'COMPLETED') {
+    throw new ValidationError('Booking is already completed');
+  }
+  if (booking.status !== 'CONFIRMED') {
+    throw new ValidationError('Only confirmed bookings can be marked as complete');
+  }
+
+  // Service must have started (lower bound of during range < NOW)
+  const { rows: [{ started }] } = await pool.query(
+    `SELECT lower(during) < NOW() AS started FROM bookings WHERE id = $1`,
+    [id]
+  );
+  if (!started) {
+    throw new ValidationError('Cannot complete a booking before it has started');
+  }
+
+  const { rows: [updated] } = await pool.query(
+    `UPDATE bookings
+     SET status = 'COMPLETED', updated_at = NOW()
+     WHERE id = $1
+     RETURNING *,
+       lower(during) AS start_at,
+       upper(during) AS end_at`,
+    [id]
+  );
+
+  return ok(formatBooking(updated));
+});
+
 // ─── DELETE /bookings/:id ────────────────────────────────────────────────────
 
 export const cancelHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {

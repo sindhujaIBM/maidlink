@@ -162,6 +162,32 @@ CREATE TRIGGER trg_bookings_updated_at
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
     `,
   },
+  {
+    name: '010_reviews.sql',
+    sql: `
+CREATE TABLE reviews (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id  UUID        NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+  customer_id UUID        NOT NULL REFERENCES users(id),
+  maid_id     UUID        NOT NULL REFERENCES maid_profiles(id),
+  rating      SMALLINT    NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment     TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_reviews_maid_id     ON reviews(maid_id);
+CREATE INDEX idx_reviews_customer_id ON reviews(customer_id);
+    `,
+  },
+  {
+    name: '011_maid_verification.sql',
+    sql: `
+ALTER TABLE maid_profiles
+  ADD COLUMN is_verified   BOOLEAN     NOT NULL DEFAULT FALSE,
+  ADD COLUMN id_doc_s3_key TEXT,
+  ADD COLUMN verified_by   UUID        REFERENCES users(id),
+  ADD COLUMN verified_at   TIMESTAMPTZ;
+    `,
+  },
 ];
 
 export const handler = async (): Promise<{ statusCode: number; body: string }> => {

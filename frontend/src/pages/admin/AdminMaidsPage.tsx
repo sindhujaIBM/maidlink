@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listAdminMaids, approveMaid, rejectMaid, type AdminMaid } from '../../api/admin';
+import { listAdminMaids, approveMaid, rejectMaid, verifyMaid, unverifyMaid, getAdminIdDocUrl, type AdminMaid } from '../../api/admin';
 import { Layout } from '../../components/layout/Layout';
 import { Badge, statusVariant } from '../../components/ui/Badge';
+import { VerifiedBadge } from '../../components/ui/VerifiedBadge';
 import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 
@@ -26,6 +27,25 @@ export function AdminMaidsPage() {
     mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectMaid(id, reason),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['adminMaids'] }); setRejectTarget(null); setRejectReason(''); },
   });
+
+  const verifyMutation = useMutation({
+    mutationFn: (id: string) => verifyMaid(id),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['adminMaids'] }),
+  });
+
+  const unverifyMutation = useMutation({
+    mutationFn: (id: string) => unverifyMaid(id),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['adminMaids'] }),
+  });
+
+  async function handleViewIdDoc(maidId: string) {
+    try {
+      const { url } = await getAdminIdDocUrl(maidId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      alert('Could not load ID document. The maid may not have uploaded one yet.');
+    }
+  }
 
   return (
     <Layout>
@@ -54,9 +74,10 @@ export function AdminMaidsPage() {
             <div key={maid.id} className="card">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="font-semibold text-gray-900">{maid.user.fullName}</span>
                     <Badge variant={statusVariant(maid.status)}>{maid.status}</Badge>
+                    {maid.isVerified && <VerifiedBadge />}
                   </div>
                   <p className="text-sm text-gray-500">{maid.user.email}</p>
                   <p className="text-sm text-gray-600 mt-1">
@@ -66,24 +87,61 @@ export function AdminMaidsPage() {
                   {maid.rejectedReason && (
                     <p className="text-xs text-red-600 mt-1">Rejection reason: {maid.rejectedReason}</p>
                   )}
-                </div>
-                {maid.status === 'PENDING' && (
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => approveMutation.mutate(maid.id)}
-                      disabled={approveMutation.isPending}
-                      className="btn-primary text-sm px-3 py-1.5"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => setRejectTarget(maid)}
-                      className="btn-danger text-sm px-3 py-1.5"
-                    >
-                      Reject
-                    </button>
+                  {/* ID doc */}
+                  <div className="mt-2 flex items-center gap-3">
+                    {maid.hasIdDoc ? (
+                      <button
+                        onClick={() => handleViewIdDoc(maid.id)}
+                        className="text-xs text-brand-600 hover:underline"
+                      >
+                        View ID Document
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">No ID document uploaded</span>
+                    )}
                   </div>
-                )}
+                </div>
+
+                <div className="flex flex-col gap-2 flex-shrink-0 items-end">
+                  {maid.status === 'PENDING' && (
+                    <>
+                      <button
+                        onClick={() => approveMutation.mutate(maid.id)}
+                        disabled={approveMutation.isPending}
+                        className="btn-primary text-sm px-3 py-1.5"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => setRejectTarget(maid)}
+                        className="btn-danger text-sm px-3 py-1.5"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {/* Verification toggle — show on approved maids */}
+                  {maid.status === 'APPROVED' && (
+                    maid.isVerified ? (
+                      <button
+                        onClick={() => { if (confirm('Remove verification from this maid?')) unverifyMutation.mutate(maid.id); }}
+                        disabled={unverifyMutation.isPending}
+                        className="text-xs text-gray-500 hover:text-red-600 disabled:opacity-50"
+                      >
+                        Remove Verified
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => verifyMutation.mutate(maid.id)}
+                        disabled={verifyMutation.isPending || !maid.hasIdDoc}
+                        title={!maid.hasIdDoc ? 'Maid has not uploaded an ID document' : undefined}
+                        className="text-xs text-green-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {verifyMutation.isPending ? 'Verifying…' : 'Mark as Verified'}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             </div>
           ))}

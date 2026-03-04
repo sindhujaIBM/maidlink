@@ -13,6 +13,7 @@ import { ProfilePage }       from './pages/ProfilePage';
 import { MaidSetupPage }     from './pages/maid/MaidSetupPage';
 import { AvailabilityPage }  from './pages/maid/AvailabilityPage';
 import { MaidBookingsPage }  from './pages/maid/MaidBookingsPage';
+import { EarningsPage }      from './pages/maid/EarningsPage';
 import { AdminDashboard }    from './pages/admin/AdminDashboard';
 import { AdminMaidsPage }    from './pages/admin/AdminMaidsPage';
 import { AdminBookingsPage } from './pages/admin/AdminBookingsPage';
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/maid/setup"        element={<RequireRole roles={['MAID']}><MaidSetupPage /></RequireRole>} />
           <Route path="/maid/availability" element={<RequireRole roles={['MAID']}><AvailabilityPage /></RequireRole>} />
           <Route path="/maid/bookings"     element={<RequireRole roles={['MAID']}><MaidBookingsPage /></RequireRole>} />
+          <Route path="/maid/earnings"     element={<RequireRole roles={['MAID']}><EarningsPage /></RequireRole>} />
           {/* Allow access to /maid/setup without MAID role so users can apply */}
           <Route path="/maid/apply"        element={<RequireRole><MaidSetupPage /></RequireRole>} />
 
