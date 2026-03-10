@@ -2,6 +2,8 @@
 
 A production-ready MVP for booking home cleaners in Calgary, built with React, AWS Lambda, Aurora Serverless v2, and the Serverless Framework.
 
+**Live:** https://maidlink.app
+
 ---
 
 ## Architecture
@@ -10,15 +12,16 @@ A production-ready MVP for booking home cleaners in Calgary, built with React, A
 Browser (React SPA on S3/CloudFront)
   └── 4 × API Gateway + Lambda services
         ├── maidlink-auth     :3001  — Google OAuth exchange, JWT issuance
-        ├── maidlink-users    :3002  — Maid profiles, photo uploads
+        ├── maidlink-users    :3002  — Maid profiles, photo uploads, estimator
         ├── maidlink-booking  :3003  — Booking CRUD + availability
         └── maidlink-admin    :3004  — Admin approval queue
               ↓
-        RDS Proxy → Aurora Serverless v2 (PostgreSQL 15)
-        S3 bucket — profile photos (private, pre-signed URLs)
+        Aurora Serverless v2 (PostgreSQL 15)
+        S3 bucket — profile photos + ID documents + estimator photos (private, pre-signed URLs)
+        AWS Bedrock (us-west-2) — Nova Lite / Claude 3.5 Haiku for AI estimator
 ```
 
-**Region:** `ca-central-1` (closest to Calgary)
+**Region:** `ca-west-1` (Calgary)
 
 **Concurrency safety:** PostgreSQL `TSRANGE EXCLUDE` constraint + `SELECT FOR UPDATE` transaction in booking handler. No double-bookings ever.
 
@@ -40,7 +43,7 @@ maidlink/
 │   ├── migrations/         # 001–008 SQL migration files
 │   └── seeds/              # Sample maids + admin user
 ├── infrastructure/
-│   └── serverless.yml      # VPC, Aurora, RDS Proxy, S3, CloudFront
+│   └── serverless.yml      # VPC, Aurora, S3, CloudFront
 ├── docker-compose.yml      # Local PostgreSQL
 └── .github/workflows/      # CI (lint/typecheck) + CD (deploy on merge)
 ```
@@ -141,10 +144,13 @@ Navigate to http://localhost:5173 and sign in with Google.
 |--------|------|-------------|
 | GET  | /users/me | Own user profile |
 | PUT  | /users/me | Update name / phone |
-| POST | /users/me/maid-profile | Register as maid |
+| POST | /users/me/maid-profile | Register as maid (requires photo + ID doc) |
 | GET  | /users/me/maid-profile | Own maid profile |
 | PUT  | /users/me/maid-profile | Update maid profile |
-| GET  | /users/me/photo-upload-url | Pre-signed S3 PUT URL |
+| GET  | /users/me/photo-upload-url | Pre-signed S3 PUT URL for profile photo |
+| GET  | /users/me/id-doc-upload-url | Pre-signed S3 PUT URL for government ID |
+| GET  | /users/me/estimator-photo-upload-url | Pre-signed S3 PUT URL for estimator photo |
+| POST | /users/me/estimator/analyze | AI-powered cleaning time analysis (Bedrock) |
 | GET  | /users/maids | Browse approved maids |
 | GET  | /users/maids/:id | Single maid public profile |
 
@@ -208,7 +214,7 @@ wait
 ```bash
 # 1. Configure AWS CLI
 aws configure
-# Region: ca-central-1
+# Region: ca-west-1
 
 # 2. Store secrets in SSM Parameter Store
 aws ssm put-parameter --name /maidlink/prod/jwt-secret \
@@ -284,13 +290,26 @@ Required GitHub secrets:
 |-------|---------|
 | `users` | All accounts (keyed by Google `sub`) |
 | `user_roles` | Many-to-many: user ↔ CUSTOMER / MAID / ADMIN roles |
-| `maid_profiles` | Extended profile for MAID users |
+| `maid_profiles` | Extended profile for MAID users (includes `photo_s3_key`, `id_doc_s3_key`) |
 | `availability_recurring` | Weekly recurring availability windows |
 | `availability_overrides` | One-off availability additions or blocks |
 | `bookings` | Bookings with TSRANGE EXCLUDE concurrency constraint |
 
 **No-overbooking guarantee:**
 The `bookings` table has a PostgreSQL `EXCLUDE USING GIST (maid_id WITH =, during WITH &&)` constraint. Any INSERT that would create an overlapping booking for the same maid raises error `23P01` (exclusion_violation). The application additionally uses `SELECT FOR UPDATE` to serialize concurrent writes cleanly.
+
+---
+
+## Features
+
+### Cleaning Time Estimator (`/estimate`)
+Public page — no login required for the base estimate.
+
+- **Phase 1 (always available):** Step through bedrooms, bathrooms, size range, condition, and add-ons to get an instant estimate for 1 or 2 cleaners.
+- **Phase 2 (AI-powered, requires login):** Upload up to 5 room photos. The backend fetches them from S3, sends them to Amazon Nova Lite via AWS Bedrock, and returns an AI-generated condition assessment, adjusted time estimate, and key areas to focus on. Falls back to Claude 3.5 Haiku if Nova Lite is unavailable. Estimator photos are temporary (not stored in the DB) and can be auto-deleted via an S3 lifecycle rule.
+
+### Maid Registration
+To apply as a maid, users must upload both a **profile photo** and a **government ID document** before submitting their application. Admins can view these documents from the approval queue.
 
 ---
 
@@ -306,6 +325,8 @@ The `bookings` table has a PostgreSQL `EXCLUDE USING GIST (maid_id WITH =, durin
 | Cross-midnight bookings not supported | Multi-day availability resolution |
 | No recurring bookings | Recurrence rule table + booking generation cron |
 | Lambda-in-VPC cold start (~200–800ms) | Provisioned concurrency on high-traffic functions |
+| Estimator photos not auto-deleted | Add S3 lifecycle rule to expire `estimator-photos/` after 1 day |
+| Bedrock called cross-region (us-west-2) | Switch to `ca-west-1` when Nova Lite becomes available there |
 
 ---
 
@@ -317,9 +338,9 @@ The `bookings` table has a PostgreSQL `EXCLUDE USING GIST (maid_id WITH =, durin
 | Backend | Node.js 20, TypeScript, AWS Lambda |
 | API | AWS API Gateway (REST) |
 | Database | Aurora Serverless v2 (PostgreSQL 15) |
-| Connection pooling | RDS Proxy |
 | Auth | Google OAuth 2.0 → HS256 JWT |
 | File storage | Amazon S3 (private, pre-signed URLs) |
+| AI | AWS Bedrock — Amazon Nova Lite (primary), Claude 3.5 Haiku (fallback) |
 | IaC | Serverless Framework v3 |
 | CI/CD | GitHub Actions |
 | Observability | Amazon CloudWatch Logs |
