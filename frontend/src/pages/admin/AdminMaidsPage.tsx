@@ -73,6 +73,13 @@ export function AdminMaidsPage() {
           {data?.maids.map(maid => (
             <div key={maid.id} className="card">
               <div className="flex items-start justify-between gap-4">
+                {/* Profile photo */}
+                <div className="h-14 w-14 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  {maid.photoUrl
+                    ? <img src={maid.photoUrl} alt={maid.user.fullName} className="h-full w-full object-cover" />
+                    : <span className="text-gray-400 text-2xl">👤</span>
+                  }
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="font-semibold text-gray-900">{maid.user.fullName}</span>

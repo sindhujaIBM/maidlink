@@ -14,7 +14,7 @@ import {
   withAuth, ok, getPool,
   ValidationError, NotFoundError,
 } from '@maidlink/shared';
-import { getIdDocViewUrl } from '../lib/s3';
+import { getIdDocViewUrl, getPhotoViewUrl } from '../lib/s3';
 
 export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
   const { status = 'PENDING', page = '1', limit = '50' } =
@@ -46,29 +46,32 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
     [status.toUpperCase()]
   );
 
+  const maids = await Promise.all(rows.map(async (r: Record<string, unknown>) => ({
+    id:              r.id,
+    status:          r.status,
+    bio:             r.bio,
+    hourlyRate:      r.hourly_rate,
+    serviceAreaCodes: r.service_area_codes,
+    yearsExperience: r.years_experience,
+    rejectedReason:  r.rejected_reason,
+    approvedAt:      r.approved_at,
+    approvedByName:  r.approved_by_name,
+    isVerified:      r.is_verified,
+    hasIdDoc:        !!r.id_doc_s3_key,
+    photoUrl:        r.photo_s3_key ? await getPhotoViewUrl(r.photo_s3_key as string) : null,
+    verifiedAt:      r.verified_at,
+    createdAt:       r.created_at,
+    user: {
+      id:         r.user_id,
+      email:      r.email,
+      fullName:   r.full_name,
+      avatarUrl:  r.avatar_url,
+      createdAt:  r.user_created_at,
+    },
+  })));
+
   return ok({
-    maids: rows.map((r: Record<string, unknown>) => ({
-      id:              r.id,
-      status:          r.status,
-      bio:             r.bio,
-      hourlyRate:      r.hourly_rate,
-      serviceAreaCodes: r.service_area_codes,
-      yearsExperience: r.years_experience,
-      rejectedReason:  r.rejected_reason,
-      approvedAt:      r.approved_at,
-      approvedByName:  r.approved_by_name,
-      isVerified:      r.is_verified,
-      hasIdDoc:        !!r.id_doc_s3_key,
-      verifiedAt:      r.verified_at,
-      createdAt:       r.created_at,
-      user: {
-        id:         r.user_id,
-        email:      r.email,
-        fullName:   r.full_name,
-        avatarUrl:  r.avatar_url,
-        createdAt:  r.user_created_at,
-      },
-    })),
+    maids,
     total: Number(count),
     page:  Number(page),
     limit: Number(limit),

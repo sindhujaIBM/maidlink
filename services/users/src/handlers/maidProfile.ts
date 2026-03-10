@@ -33,10 +33,18 @@ export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
     hourlyRate: number;
     serviceAreaCodes: string[];
     yearsExperience?: number;
+    photoS3Key?: string;
+    idDocS3Key?: string;
   };
 
   if (!body.hourlyRate || body.hourlyRate <= 0) {
     throw new ValidationError('hourlyRate must be a positive number');
+  }
+  if (!body.photoS3Key) {
+    throw new ValidationError('A profile photo is required to submit your application.');
+  }
+  if (!body.idDocS3Key) {
+    throw new ValidationError('A government ID document is required to submit your application.');
   }
 
   const serviceCodes = validateServiceAreaCodes(body.serviceAreaCodes);
@@ -58,8 +66,8 @@ export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
     // Create profile (status = PENDING; admin must approve before bookable)
     const { rows: [maid] } = await client.query(
       `INSERT INTO maid_profiles
-         (user_id, bio, hourly_rate, service_area_codes, years_experience)
-       VALUES ($1, $2, $3, $4, $5)
+         (user_id, bio, hourly_rate, service_area_codes, years_experience, photo_s3_key, id_doc_s3_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         auth.userId,
@@ -67,6 +75,8 @@ export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
         body.hourlyRate,
         serviceCodes,
         body.yearsExperience || 0,
+        body.photoS3Key,
+        body.idDocS3Key,
       ]
     );
 

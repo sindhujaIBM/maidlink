@@ -18,3 +18,15 @@ export async function getIdDocViewUrl(s3Key: string): Promise<string> {
     { expiresIn: 900 } // 15 minutes
   );
 }
+
+/**
+ * Generates a pre-signed GET URL for viewing a maid's profile photo.
+ * 15-minute TTL — admin context.
+ */
+export async function getPhotoViewUrl(s3Key: string): Promise<string> {
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }),
+    { expiresIn: 900 }
+  );
+}

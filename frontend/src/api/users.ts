@@ -41,6 +41,8 @@ export async function createMaidProfile(data: {
   hourlyRate: number;
   serviceAreaCodes: string[];
   yearsExperience?: number;
+  photoS3Key: string;
+  idDocS3Key: string;
 }) {
   const res = await usersClient.post('/users/me/maid-profile', data);
   return res.data.data;

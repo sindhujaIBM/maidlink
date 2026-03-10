@@ -57,6 +57,7 @@ export interface AdminMaid {
   approvedByName: string | null;
   isVerified: boolean;
   hasIdDoc: boolean;
+  photoUrl: string | null;
   verifiedAt: string | null;
   createdAt: string;
   user: {
