@@ -40,6 +40,12 @@ provider:
             - s3:DeleteObject
           Resource:
             - arn:aws:s3:::maidlink-photos-*/*
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+          Resource:
+            - arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
+            - arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0
 
 functions:
   getMyProfile:
@@ -112,6 +118,23 @@ functions:
       - http:
           path: /users/maids/{maidId}
           method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  getEstimatorPhotoUploadUrl:
+    handler: src/handlers/estimatorPhotoUpload.handler
+    events:
+      - http:
+          path: /users/me/estimator-photo-upload-url
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  estimatorAnalyze:
+    handler: src/handlers/estimatorAnalyze.handler
+    timeout: 60   # Bedrock inference can take up to ~30s for multi-image requests
+    events:
+      - http:
+          path: /users/me/estimator/analyze
+          method: post
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
 custom:

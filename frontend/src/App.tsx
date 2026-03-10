@@ -19,6 +19,7 @@ import { AdminMaidsPage }    from './pages/admin/AdminMaidsPage';
 import { AdminBookingsPage } from './pages/admin/AdminBookingsPage';
 import { AdminLoginPage }    from './pages/admin/AdminLoginPage';
 import { DevLoginPage }      from './pages/DevLoginPage';
+import { EstimatorPage }    from './pages/EstimatorPage';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/"               element={<HomePage />} />
+          <Route path="/estimate"       element={<EstimatorPage />} />
           <Route path="/auth/callback"  element={<AuthCallback />} />
           <Route path="/admin/login"    element={<AdminLoginPage />} />
           {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}

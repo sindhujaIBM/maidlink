@@ -1,4 +1,5 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import type { Readable } from 'stream';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
@@ -51,6 +52,39 @@ export async function getIdDocUploadUrl(userId: string): Promise<{ uploadUrl: st
   );
 
   return { uploadUrl, s3Key };
+}
+
+/**
+ * Generates a pre-signed PUT URL for uploading an estimator photo (temporary use).
+ * Stored under estimator-photos/ — no DB persistence needed.
+ */
+export async function getEstimatorPhotoUploadUrl(userId: string): Promise<{ uploadUrl: string; s3Key: string }> {
+  const s3Key = `estimator-photos/${userId}/${Date.now()}-${randomUUID()}.jpg`;
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket:        BUCKET,
+      Key:           s3Key,
+      ContentType:   'image/jpeg',
+      ContentLength: PHOTO_SIZE_LIMIT_BYTES,
+    }),
+    { expiresIn: 3600 }
+  );
+  return { uploadUrl, s3Key };
+}
+
+/**
+ * Fetches an S3 object and returns its content as a base64 string + mime type.
+ * Used by the estimator analyze Lambda to send images to Bedrock.
+ */
+export async function getObjectAsBase64(s3Key: string): Promise<{ base64: string; mediaType: string }> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }));
+  const contentType = res.ContentType || 'image/jpeg';
+  const chunks: Buffer[] = [];
+  for await (const chunk of res.Body as Readable) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return { base64: Buffer.concat(chunks).toString('base64'), mediaType: contentType };
 }
 
 /**

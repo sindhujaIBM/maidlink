@@ -21,6 +21,7 @@ export function Navbar() {
 
           {/* Nav links */}
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-brand-100">
+            <Link to="/estimate" className="hover:text-white">Estimator</Link>
             {isAuthenticated && (
               <>
                 <Link to="/maids" className="hover:text-white">Browse Maids</Link>
