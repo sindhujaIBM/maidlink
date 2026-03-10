@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
+import { EstimatorWidget } from '../components/estimator/EstimatorWidget';
 
 export function HomePage() {
   const { isAuthenticated, hasRole } = useAuth();
@@ -11,8 +12,8 @@ export function HomePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Simple hero */}
-      <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4">
+      {/* Hero */}
+      <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4">
         <div className="text-6xl mb-6">🧹</div>
         <h1 className="text-5xl font-bold text-brand-800 mb-4">
           MaidLink
@@ -51,7 +52,7 @@ export function HomePage() {
         )}
 
         {/* Feature highlights */}
-        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl w-full text-left">
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl w-full text-left">
           {[
             { icon: '🔒', title: 'No double-bookings — ever', desc: 'Database-level constraints guarantee your booking is exclusive.' },
             { icon: '📍', title: 'Calgary-only', desc: 'All maids are verified to service Calgary postal codes.' },
@@ -63,6 +64,19 @@ export function HomePage() {
               <p className="text-sm text-gray-500">{f.desc}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Estimator section */}
+      <div className="bg-gray-50 border-t border-gray-200 py-16 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold text-gray-900">Cleaning Time Estimator</h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Find out how long your clean will take — instantly, no sign-in required.
+            </p>
+          </div>
+          <EstimatorWidget />
         </div>
       </div>
     </div>
