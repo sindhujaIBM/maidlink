@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
-import { EstimatorWidget } from '../components/estimator/EstimatorWidget';
 
 export function HomePage() {
   const { isAuthenticated, hasRole } = useAuth();
@@ -14,10 +13,7 @@ export function HomePage() {
     <div className="min-h-screen bg-white">
       {/* Hero */}
       <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4">
-        <div className="text-6xl mb-6">🧹</div>
-        <h1 className="text-5xl font-bold text-brand-800 mb-4">
-          MaidLink
-        </h1>
+        <img src="/logo-full.png" alt="MaidLink" className="h-24 w-auto mb-6" />
         <p className="text-xl text-brand-600 mb-2 max-w-lg">
           Book trusted home cleaners in Calgary — fast, reliable, and always on time.
         </p>
@@ -67,17 +63,12 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Estimator section */}
-      <div className="bg-gray-50 border-t border-gray-200 py-16 px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="mb-6 text-center">
-            <h2 className="text-2xl font-bold text-gray-900">Cleaning Time Estimator</h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Find out how long your clean will take — instantly, no sign-in required.
-            </p>
-          </div>
-          <EstimatorWidget />
-        </div>
+      {/* Estimator CTA */}
+      <div className="border-t border-gray-100 py-12 px-4 text-center">
+        <p className="text-gray-500 text-sm mb-2">Not ready to hire just yet?</p>
+        <Link to="/estimate" className="text-brand-700 font-semibold hover:text-brand-500 transition-colors">
+          Use our free Cleaning Time Estimator →
+        </Link>
       </div>
     </div>
   );
