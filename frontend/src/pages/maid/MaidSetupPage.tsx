@@ -47,27 +47,36 @@ export function MaidSetupPage() {
   const [idDocError, setIdDocError]         = useState<string | null>(null);
   const idDocRef = useRef<HTMLInputElement>(null);
 
-  const saveMutation = useMutation({
-    mutationFn: isNew
-      ? (data: Parameters<typeof createMaidProfile>[0]) => createMaidProfile(data)
-      : (data: Parameters<typeof updateMaidProfile>[0]) => updateMaidProfile(data),
-    onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['myMaidProfile'] });
-      if (isNew) {
-        // Refresh the JWT so it includes the newly-granted MAID role
-        try {
-          const { accessToken, user } = await refreshToken();
-          updateSession(accessToken, user);
-        } catch { /* non-fatal — token will update on next sign-in */ }
-      }
-      navigate('/maid/availability');
-    },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message || 'Failed to save profile';
-      setError(msg);
-    },
+  const onSuccess = async () => {
+    qc.invalidateQueries({ queryKey: ['myMaidProfile'] });
+    if (isNew) {
+      try {
+        const { accessToken, user } = await refreshToken();
+        updateSession(accessToken, user);
+      } catch { /* non-fatal — token will update on next sign-in */ }
+    }
+    navigate('/maid/availability');
+  };
+
+  const onError = (err: unknown) => {
+    const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+      ?.response?.data?.error?.message || 'Failed to save profile';
+    setError(msg);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: createMaidProfile,
+    onSuccess,
+    onError,
   });
+
+  const updateMutation = useMutation({
+    mutationFn: updateMaidProfile,
+    onSuccess,
+    onError,
+  });
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   // Inline photo upload (used on new-profile form — doesn't auto-save to profile)
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -132,7 +141,7 @@ export function MaidSetupPage() {
     if (isNew) {
       if (!photoS3Key)  { setError('Please upload a profile photo before submitting.'); return; }
       if (!idDocS3Key)  { setError('Please upload a government ID document before submitting.'); return; }
-      saveMutation.mutate({
+      createMutation.mutate({
         bio:              bio || undefined,
         hourlyRate:       parseFloat(hourlyRate),
         serviceAreaCodes: serviceCodes,
@@ -141,7 +150,7 @@ export function MaidSetupPage() {
         idDocS3Key,
       });
     } else {
-      saveMutation.mutate({
+      updateMutation.mutate({
         bio:              bio || undefined,
         hourlyRate:       parseFloat(hourlyRate),
         serviceAreaCodes: serviceCodes,
@@ -340,12 +349,12 @@ export function MaidSetupPage() {
             type="submit"
             className="btn-primary w-full disabled:opacity-50"
             disabled={
-              saveMutation.isPending ||
+              isPending ||
               serviceCodes.length === 0 ||
               (isNew && (!photoS3Key || !idDocS3Key))
             }
           >
-            {saveMutation.isPending ? <Spinner size="sm" /> : null}
+            {isPending ? <Spinner size="sm" /> : null}
             {isNew ? 'Submit for Approval' : 'Save Changes'}
           </button>
         </form>

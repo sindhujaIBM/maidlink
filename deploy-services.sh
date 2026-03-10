@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+ROOT="/Users/sindhuja/Desktop/maidlink"
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
 SECRET=$(aws secretsmanager get-secret-value \
   --secret-id /maidlink/prod/rds-credentials \
   --region ca-west-1 --query SecretString --output text)
@@ -25,20 +28,44 @@ export GOOGLE_CLIENT_SECRET=$(aws ssm get-parameter \
   --name /maidlink/prod/google-client-secret --with-decryption \
   --region ca-west-1 --query Parameter.Value --output text)
 
+# ── Lambda services ───────────────────────────────────────────────────────────
 echo "Deploying auth..."
-cd /Users/sindhuja/Desktop/maidlink/services/auth
-npx serverless deploy --stage prod
+cd "$ROOT/services/auth" && npx serverless deploy --stage prod
 
 echo "Deploying users..."
-cd /Users/sindhuja/Desktop/maidlink/services/users
-npx serverless deploy --stage prod
+cd "$ROOT/services/users" && npx serverless deploy --stage prod
 
 echo "Deploying booking..."
-cd /Users/sindhuja/Desktop/maidlink/services/booking
-npx serverless deploy --stage prod
+cd "$ROOT/services/booking" && npx serverless deploy --stage prod
 
 echo "Deploying admin..."
-cd /Users/sindhuja/Desktop/maidlink/services/admin
-npx serverless deploy --stage prod
+cd "$ROOT/services/admin" && npx serverless deploy --stage prod
 
-echo "All services deployed!"
+# ── Clean up old Lambda versions (keep only the most recent numbered version) ─
+echo "Cleaning up old Lambda versions..."
+for fn in $(aws lambda list-functions --region ca-west-1 \
+  --query 'Functions[?starts_with(FunctionName, `maidlink-`)].FunctionName' \
+  --output text); do
+  old_versions=$(aws lambda list-versions-by-function \
+    --function-name "$fn" --region ca-west-1 \
+    --query 'Versions[?Version!=`$LATEST`] | sort_by(@, &to_number(Version))[:-1].Version' \
+    --output text)
+  for v in $old_versions; do
+    echo "  Deleting $fn:$v"
+    aws lambda delete-function --function-name "$fn" --qualifier "$v" --region ca-west-1
+  done
+done
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+echo "Building frontend..."
+cd "$ROOT/frontend" && npm run build
+
+echo "Syncing to S3..."
+aws s3 sync dist/ s3://maidlink-infra-prod-frontendbucket-qtg9tfwkus1z/ --delete
+
+echo "Invalidating CloudFront..."
+aws cloudfront create-invalidation \
+  --distribution-id E2C1HS3K184GKW \
+  --paths "/*"
+
+echo "Done!"
