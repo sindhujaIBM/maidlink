@@ -63,10 +63,9 @@ export async function getEstimatorPhotoUploadUrl(userId: string): Promise<{ uplo
   const uploadUrl = await getSignedUrl(
     s3,
     new PutObjectCommand({
-      Bucket:        BUCKET,
-      Key:           s3Key,
-      ContentType:   'image/jpeg',
-      ContentLength: PHOTO_SIZE_LIMIT_BYTES,
+      Bucket:      BUCKET,
+      Key:         s3Key,
+      ContentType: 'image/jpeg',
     }),
     { expiresIn: 3600 }
   );

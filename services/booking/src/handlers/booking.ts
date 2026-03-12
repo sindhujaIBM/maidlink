@@ -6,6 +6,8 @@
  */
 
 import type { APIGatewayProxyEvent } from 'aws-lambda';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   withAuth, ok, created, noContent, getPool,
   ValidationError, NotFoundError, ForbiddenError, ConflictError,
@@ -15,19 +17,30 @@ import {
 import { buildTstzRange, assertMaidAvailable } from '../lib/concurrency';
 import { calculateTotalPrice } from '../lib/pricing';
 
+const s3     = new S3Client({ region: process.env.AWS_REGION || 'ca-west-1' });
+const BUCKET = process.env.PHOTOS_BUCKET!;
+
+async function toPresignedUrls(keys: string[]): Promise<string[]> {
+  if (!keys || keys.length === 0) return [];
+  return Promise.all(
+    keys.map(key => getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 }))
+  );
+}
+
 // ─── POST /bookings ──────────────────────────────────────────────────────────
 
 export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   if (!event.body) throw new ValidationError('Request body is required');
 
   const body = JSON.parse(event.body) as {
-    maidId: string;
-    startAt: string;
-    endAt: string;
-    addressLine1: string;
-    addressLine2?: string;
-    postalCode: string;
-    notes?: string;
+    maidId:           string;
+    startAt:          string;
+    endAt:            string;
+    addressLine1:     string;
+    addressLine2?:    string;
+    postalCode:       string;
+    notes?:           string;
+    beforePhotoKeys?: string[];
   };
 
   if (!body.maidId)       throw new ValidationError('maidId is required');
@@ -94,11 +107,16 @@ export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
     // will reject the second INSERT with pg error code 23P01.
     const totalPrice = calculateTotalPrice(startAt, endAt, Number(maid.hourly_rate));
 
+    // Validate beforePhotoKeys if provided
+    const beforePhotoKeys = (body.beforePhotoKeys || []).filter(
+      k => typeof k === 'string' && k.startsWith('estimator-photos/')
+    );
+
     const { rows: [booking] } = await client.query(
       `INSERT INTO bookings
          (customer_id, maid_id, during, address_line1, address_line2,
-          postal_code, notes, total_price)
-       VALUES ($1, $2, $3::tstzrange, $4, $5, $6, $7, $8)
+          postal_code, notes, total_price, before_photo_keys)
+       VALUES ($1, $2, $3::tstzrange, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         auth.userId,
@@ -109,6 +127,7 @@ export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
         body.postalCode.toUpperCase(),
         body.notes || null,
         totalPrice,
+        beforePhotoKeys,
       ]
     );
 
@@ -212,7 +231,12 @@ export const getOneHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
     throw new ForbiddenError('Access denied');
   }
 
-  return ok(formatBookingWithNames(row));
+  const [beforePhotoUrls, afterPhotoUrls] = await Promise.all([
+    toPresignedUrls(row.before_photo_keys || []),
+    toPresignedUrls(row.after_photo_keys  || []),
+  ]);
+
+  return ok({ ...formatBookingWithNames(row), beforePhotoUrls, afterPhotoUrls });
 });
 
 // ─── PATCH /bookings/:id/complete ────────────────────────────────────────────
@@ -308,19 +332,21 @@ export const cancelHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
 
 function formatBooking(row: Record<string, unknown>) {
   return {
-    id:           row.id,
-    customerId:   row.customer_id,
-    maidId:       row.maid_id,
-    status:       row.status,
-    startAt:      row.start_at || row.during,
-    endAt:        row.end_at,
-    addressLine1: row.address_line1,
-    addressLine2: row.address_line2,
-    city:         row.city,
-    postalCode:   row.postal_code,
-    notes:        row.notes,
-    totalPrice:   row.total_price,
-    createdAt:    row.created_at,
+    id:              row.id,
+    customerId:      row.customer_id,
+    maidId:          row.maid_id,
+    status:          row.status,
+    startAt:         row.start_at || row.during,
+    endAt:           row.end_at,
+    addressLine1:    row.address_line1,
+    addressLine2:    row.address_line2,
+    city:            row.city,
+    postalCode:      row.postal_code,
+    notes:           row.notes,
+    totalPrice:      row.total_price,
+    createdAt:       row.created_at,
+    beforePhotoKeys: row.before_photo_keys || [],
+    afterPhotoKeys:  row.after_photo_keys  || [],
   };
 }
 

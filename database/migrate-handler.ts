@@ -188,6 +188,25 @@ ALTER TABLE maid_profiles
   ADD COLUMN verified_at   TIMESTAMPTZ;
     `,
   },
+  {
+    name: '012_booking_photos.sql',
+    sql: `
+ALTER TABLE bookings
+  ADD COLUMN before_photo_keys TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN after_photo_keys  TEXT[] NOT NULL DEFAULT '{}';
+    `,
+  },
+  {
+    name: '013_estimator_rate_limit.sql',
+    sql: `
+CREATE TABLE estimator_analyses (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX estimator_analyses_user_day ON estimator_analyses (user_id, created_at);
+    `,
+  },
 ];
 
 export const handler = async (): Promise<{ statusCode: number; body: string }> => {

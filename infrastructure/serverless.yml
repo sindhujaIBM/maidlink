@@ -188,7 +188,7 @@ resources:
       DeletionPolicy: Snapshot
       Properties:
         Engine: aurora-postgresql
-        EngineVersion: '15.8'
+        EngineVersion: '15.10'
         DatabaseName: maidlink
         MasterUsername: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:username}}'
         MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:password}}'
@@ -236,6 +236,11 @@ resources:
               Status: Enabled
               # Clean up any uploads not linked to a profile after 7 days
               NoncurrentVersionExpirationInDays: 7
+            - Id: ExpireEstimatorPhotos
+              Status: Enabled
+              # Estimator photos expire after 30 days (enough time for any linked booking)
+              Prefix: estimator-photos/
+              ExpirationInDays: 30
 
     # ─── S3 — Frontend Static Hosting ───────────────────────────────────────
     # Public-read bucket — no OAI. CloudFront makes anonymous requests.

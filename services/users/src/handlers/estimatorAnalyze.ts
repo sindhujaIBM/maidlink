@@ -5,6 +5,8 @@
  * Fetches the photos from S3, sends them to Amazon Nova Lite via Bedrock
  * (falls back to Claude 3.5 Haiku if Nova Lite fails), and returns an
  * AI-generated condition assessment + refined time estimate.
+ *
+ * Rate-limited to 5 analyses per user per 24 hours.
  */
 
 import type { APIGatewayProxyEvent } from 'aws-lambda';
@@ -12,52 +14,67 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
-import { withAuth, ok, ValidationError } from '@maidlink/shared';
+import { withAuth, ok, ValidationError, ForbiddenError, getPool } from '@maidlink/shared';
 import { getObjectAsBase64 } from '../lib/s3';
 
-// Bedrock is called in us-west-2 — Nova Lite & Claude 3.5 Haiku confirmed available there
+const DAILY_LIMIT = 5;
+
+// Bedrock is called in us-west-2 — Nova Lite & Claude 3.5 Haiku available there via inference profiles
 const bedrock = new BedrockRuntimeClient({ region: 'us-west-2' });
 
-const NOVA_LITE_MODEL   = 'amazon.nova-lite-v1:0';
-const HAIKU_MODEL       = 'anthropic.claude-3-5-haiku-20241022-v1:0';
+const NOVA_LITE_MODEL = 'us.amazon.nova-lite-v1:0';
+const HAIKU_MODEL     = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 
 interface AnalyzeBody {
-  bedrooms:   number;
-  bathrooms:  number;
-  sqftRange:  string;
-  condition:  string;
-  extras:     string[];
-  photoS3Keys: string[];
+  bedrooms:      number;
+  bathrooms:     number;
+  sqftRange:     string;
+  condition:     string;
+  extras:        string[];
+  photoS3Keys:   string[];
+  cleaningType?: string;
+  pets?:         boolean;
+  cookingFreq?:  string;
+  cookingStyle?: string;
 }
 
 // ── Prompt ────────────────────────────────────────────────────────────────────
 
 function buildPrompt(body: AnalyzeBody): string {
+  const extrasText = body.extras.length > 0 ? body.extras.join(', ') : 'none';
+  const petsText   = body.pets ? 'Yes — account for pet hair and dander' : 'No';
+
   return `You are an expert residential cleaning estimator for a professional cleaning company in Calgary, Canada.
 
 The customer has described their home:
 - Bedrooms: ${body.bedrooms}
 - Bathrooms: ${body.bathrooms}
 - Size: ${body.sqftRange} sq ft
+- Cleaning type requested: ${body.cleaningType ?? 'Standard Cleaning'}
 - Self-reported condition: ${body.condition}
-- Requested add-ons: ${body.extras.length > 0 ? body.extras.join(', ') : 'none'}
+- Pets: ${petsText}
+- Cooking frequency: ${body.cookingFreq ?? 'Occasionally'}
+- Cooking style: ${body.cookingStyle ?? 'Moderate'}
+- Requested add-ons: ${extrasText}
 
 They have uploaded ${body.photoS3Keys.length} photo(s) of their space.
 
 Please analyse the photos and provide:
-1. CONDITION ASSESSMENT: What you observe in the photos (clutter level, dust, stains, specific areas that need extra attention). Be specific and helpful.
-2. ADJUSTED CONDITION: Based on the photos, would you classify the actual condition as "pristine", "average", "messy", or "very messy"? State if it matches the customer's self-report.
-3. TIME ESTIMATE: Based on both the form inputs AND the photos, provide:
+1. CONDITION ASSESSMENT: What you observe in the photos (clutter level, dust, stains, grease, specific areas needing extra attention). Be specific and helpful.
+2. ADJUSTED CONDITION: Based on the photos, classify actual condition as "pristine", "average", "messy", or "very_messy". State if it matches the customer's self-report.
+3. CLEANING TYPE CHECK: Does the requested cleaning type (${body.cleaningType ?? 'Standard Cleaning'}) match what the photos show? Flag if a deeper clean is warranted.
+4. TIME ESTIMATE: Based on ALL inputs AND the photos, provide:
    - Estimated hours for 1 cleaner
    - Estimated hours for 2 cleaners
-   Round to nearest 0.5 hours.
-4. KEY AREAS: List 2–3 specific areas or tasks that will take the most time based on what you see.
+   Round to nearest 0.5 hours. Account for cleaning type multipliers (Deep ×1.5, Move-Out ×2), condition, pets, cooking habits, and add-ons.
+5. KEY AREAS: List 2–4 specific areas or tasks that will take the most time based on what you see.
 
-Be concise, professional, and encouraging. Format your response as JSON with these exact keys:
+Be concise, professional, and encouraging. Respond ONLY with JSON using these exact keys:
 {
   "conditionAssessment": "...",
   "adjustedCondition": "pristine|average|messy|very_messy",
   "matchesSelfReport": true|false,
+  "cleaningTypeNote": "...",
   "oneCleanerHours": 3.5,
   "twoCleanerHours": 2.0,
   "keyAreas": ["...", "...", "..."],
@@ -81,7 +98,7 @@ async function invokeNovaLite(
 
   const payload = {
     messages: [{ role: 'user', content }],
-    inferenceConfig: { max_new_tokens: 600, temperature: 0.2 },
+    inferenceConfig: { max_new_tokens: 800, temperature: 0.2 },
   };
 
   const res = await bedrock.send(new InvokeModelCommand({
@@ -92,7 +109,6 @@ async function invokeNovaLite(
   }));
 
   const decoded = JSON.parse(Buffer.from(res.body).toString());
-  // Nova Lite response: output.message.content[0].text
   return decoded.output?.message?.content?.[0]?.text ?? '';
 }
 
@@ -110,7 +126,7 @@ async function invokeHaiku(
 
   const payload = {
     anthropic_version: 'bedrock-2023-05-31',
-    max_tokens:        600,
+    max_tokens:        800,
     temperature:       0.2,
     messages: [{ role: 'user', content }],
   };
@@ -123,13 +139,12 @@ async function invokeHaiku(
   }));
 
   const decoded = JSON.parse(Buffer.from(res.body).toString());
-  // Claude response: content[0].text
   return decoded.content?.[0]?.text ?? '';
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
-export const handler = withAuth(async (event: APIGatewayProxyEvent) => {
+export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   if (!event.body) throw new ValidationError('Request body is required');
 
   const body = JSON.parse(event.body) as AnalyzeBody;
@@ -141,14 +156,32 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent) => {
   if (photoS3Keys.length > 5) {
     throw new ValidationError('Maximum 5 photos allowed');
   }
-  // Validate keys are scoped to estimator-photos/ to prevent reading arbitrary objects
   for (const key of photoS3Keys) {
     if (!key.startsWith('estimator-photos/')) {
       throw new ValidationError('Invalid photo key');
     }
   }
 
-  // Fetch all photos from S3 in parallel
+  // ── Rate limit: 5 analyses per user per 24 hours ──────────────────────────
+  const pool = getPool();
+  const { rows: [{ count }] } = await pool.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+     FROM estimator_analyses
+     WHERE user_id = $1
+       AND created_at > NOW() - INTERVAL '24 hours'`,
+    [auth.userId]
+  );
+  if (parseInt(count, 10) >= DAILY_LIMIT) {
+    throw new ForbiddenError(`Daily limit of ${DAILY_LIMIT} AI analyses reached. Try again tomorrow.`);
+  }
+
+  // Log before calling Bedrock (counts even on failure to prevent abuse via rapid retries)
+  await pool.query(
+    `INSERT INTO estimator_analyses (user_id) VALUES ($1)`,
+    [auth.userId]
+  );
+
+  // ── Fetch photos from S3 ──────────────────────────────────────────────────
   const images = await Promise.all(photoS3Keys.map(k => getObjectAsBase64(k)));
 
   const prompt = buildPrompt(body);
@@ -162,7 +195,6 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent) => {
     rawText = await invokeHaiku(prompt, images);
   }
 
-  // Parse JSON from model response (strip markdown fences if present)
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Model returned unexpected format');
   const result = JSON.parse(jsonMatch[0]);

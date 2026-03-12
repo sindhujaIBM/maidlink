@@ -67,14 +67,18 @@ export function MaidDetailPage() {
     setIsBooking(true);
     setBookError(null);
     try {
+      const storedKeys = sessionStorage.getItem('estimatorPhotoKeys');
+      const beforePhotoKeys: string[] = storedKeys ? JSON.parse(storedKeys) : [];
       await createBooking({
-        maidId:       maid.id,
-        startAt:      selectedSlot.startAt,
+        maidId:         maid.id,
+        startAt:        selectedSlot.startAt,
         endAt,
-        addressLine1: address,
-        postalCode:   postal,
-        notes:        notes || undefined,
+        addressLine1:   address,
+        postalCode:     postal,
+        notes:          notes || undefined,
+        beforePhotoKeys: beforePhotoKeys.length > 0 ? beforePhotoKeys : undefined,
       });
+      sessionStorage.removeItem('estimatorPhotoKeys');
       await qc.invalidateQueries({ queryKey: ['bookings'] });
       setShowSuccess(true);
     } catch (err: unknown) {

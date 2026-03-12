@@ -39,13 +39,15 @@ provider:
             - s3:GetObject
             - s3:DeleteObject
           Resource:
-            - arn:aws:s3:::maidlink-photos-*/*
+            - arn:aws:s3:::${env:PHOTOS_BUCKET, 'maidlink-photos-local'}/*
         - Effect: Allow
           Action:
             - bedrock:InvokeModel
           Resource:
-            - arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-lite-v1:0
-            - arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0
+            - arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0
+            - arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0
+            - arn:aws:bedrock:*:*:inference-profile/us.amazon.nova-lite-v1:0
+            - arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0
 
 functions:
   getMyProfile:

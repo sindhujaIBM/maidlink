@@ -3,16 +3,27 @@ import { bookingClient } from './client';
 // ── Bookings ─────────────────────────────────────────────────────────────────
 
 export async function createBooking(data: {
-  maidId: string;
-  startAt: string;
-  endAt: string;
-  addressLine1: string;
-  addressLine2?: string;
-  postalCode: string;
-  notes?: string;
+  maidId:           string;
+  startAt:          string;
+  endAt:            string;
+  addressLine1:     string;
+  addressLine2?:    string;
+  postalCode:       string;
+  notes?:           string;
+  beforePhotoKeys?: string[];
 }) {
   const res = await bookingClient.post('/bookings', data);
   return res.data.data as Booking;
+}
+
+export async function getAfterPhotoUploadUrl(bookingId: string) {
+  const res = await bookingClient.get(`/bookings/${bookingId}/after-photos/upload-url`);
+  return res.data.data as { uploadUrl: string; s3Key: string };
+}
+
+export async function submitAfterPhotos(bookingId: string, s3Keys: string[]) {
+  const res = await bookingClient.patch(`/bookings/${bookingId}/after-photos`, { s3Keys });
+  return res.data.data as { uploaded: number };
 }
 
 export async function listBookings(params?: { role?: 'customer' | 'maid'; status?: string }) {
@@ -111,6 +122,10 @@ export interface Booking {
   createdAt: string;
   customerName?: string;
   maidName?: string;
+  beforePhotoKeys?: string[];
+  afterPhotoKeys?: string[];
+  beforePhotoUrls?: string[];
+  afterPhotoUrls?: string[];
 }
 
 export interface Review {

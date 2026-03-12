@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listBookings, cancelBooking, completeBooking, createReview } from '../api/bookings';
+import { listBookings, getBooking, cancelBooking, completeBooking, createReview } from '../api/bookings';
 import { Layout } from '../components/layout/Layout';
 import { Badge, statusVariant } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
@@ -10,15 +10,23 @@ import { format } from 'date-fns';
 
 export function BookingsPage() {
   const qc = useQueryClient();
-  const [reviewTarget, setReviewTarget] = useState<string | null>(null); // bookingId
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState('');
-  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
-  const [reviewError, setReviewError] = useState('');
+  const [reviewTarget,  setReviewTarget]  = useState<string | null>(null);
+  const [rating,        setRating]        = useState(0);
+  const [comment,       setComment]       = useState('');
+  const [reviewedIds,   setReviewedIds]   = useState<Set<string>>(new Set());
+  const [reviewError,   setReviewError]   = useState('');
+  const [photosTarget,  setPhotosTarget]  = useState<string | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings', 'customer'],
     queryFn:  () => listBookings({ role: 'customer' }),
+  });
+
+  // Fetch full booking detail (with presigned photo URLs) only when the photo modal is open
+  const { data: photoBooking, isLoading: photosLoading } = useQuery({
+    queryKey: ['booking', photosTarget],
+    queryFn:  () => getBooking(photosTarget!),
+    enabled:  !!photosTarget,
   });
 
   const cancelMutation = useMutation({
@@ -55,10 +63,7 @@ export function BookingsPage() {
   }
 
   function submitReview() {
-    if (!reviewTarget || rating === 0) {
-      setReviewError('Please select a star rating.');
-      return;
-    }
+    if (!reviewTarget || rating === 0) { setReviewError('Please select a star rating.'); return; }
     reviewMutation.mutate({ bookingId: reviewTarget, rating, comment });
   }
 
@@ -81,9 +86,10 @@ export function BookingsPage() {
 
         <div className="space-y-4">
           {bookings.map(b => {
-            const started = new Date(b.startAt) < now;
+            const started    = new Date(b.startAt) < now;
             const canComplete = b.status === 'CONFIRMED' && started;
-            const canReview = b.status === 'COMPLETED' && !reviewedIds.has(b.id);
+            const canReview  = b.status === 'COMPLETED' && !reviewedIds.has(b.id);
+            const hasPhotos  = (b.beforePhotoKeys?.length ?? 0) > 0 || (b.afterPhotoKeys?.length ?? 0) > 0;
 
             return (
               <div key={b.id} className="card">
@@ -97,15 +103,22 @@ export function BookingsPage() {
                       {format(new Date(b.startAt), 'EEE, MMM d, yyyy')} · {b.startAt.slice(11,16)} – {b.endAt.slice(11,16)}
                     </p>
                     <p className="text-sm text-gray-500 mt-0.5">{b.addressLine1}, {b.city} {b.postalCode}</p>
+
+                    {hasPhotos && (
+                      <button
+                        onClick={() => setPhotosTarget(b.id)}
+                        className="mt-2 text-xs text-brand-600 hover:underline flex items-center gap-1"
+                      >
+                        📸 View before / after photos
+                      </button>
+                    )}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="font-semibold text-gray-900">${parseFloat(b.totalPrice).toFixed(2)}</p>
                     <div className="flex flex-col items-end gap-1 mt-2">
                       {canComplete && (
                         <button
-                          onClick={() => {
-                            if (confirm('Mark this booking as complete?')) completeMutation.mutate(b.id);
-                          }}
+                          onClick={() => { if (confirm('Mark this booking as complete?')) completeMutation.mutate(b.id); }}
                           disabled={completeMutation.isPending}
                           className="text-xs text-brand-600 hover:underline disabled:opacity-50"
                         >
@@ -113,10 +126,7 @@ export function BookingsPage() {
                         </button>
                       )}
                       {canReview && (
-                        <button
-                          onClick={() => openReview(b.id)}
-                          className="text-xs text-brand-600 hover:underline"
-                        >
+                        <button onClick={() => openReview(b.id)} className="text-xs text-brand-600 hover:underline">
                           Leave a Review
                         </button>
                       )}
@@ -125,9 +135,7 @@ export function BookingsPage() {
                       )}
                       {b.status === 'CONFIRMED' && !started && (
                         <button
-                          onClick={() => {
-                            if (confirm('Cancel this booking?')) cancelMutation.mutate(b.id);
-                          }}
+                          onClick={() => { if (confirm('Cancel this booking?')) cancelMutation.mutate(b.id); }}
                           className="text-xs text-red-600 hover:underline"
                         >
                           Cancel
@@ -142,17 +150,31 @@ export function BookingsPage() {
         </div>
       </div>
 
+      {/* Before/After Photo Modal */}
+      <Modal isOpen={!!photosTarget} onClose={() => setPhotosTarget(null)} title="Before / After Photos">
+        {photosLoading && <div className="flex justify-center py-8"><Spinner size="lg" /></div>}
+        {photoBooking && !photosLoading && (
+          <div className="space-y-6">
+            <PhotoGrid
+              title="Before — estimator photos"
+              urls={photoBooking.beforePhotoUrls ?? []}
+              emptyText="No before photos attached to this booking"
+            />
+            <PhotoGrid
+              title="After — maid completion photos"
+              urls={photoBooking.afterPhotoUrls ?? []}
+              emptyText="The maid hasn't uploaded completion photos yet"
+            />
+          </div>
+        )}
+      </Modal>
+
       {/* Review modal */}
       <Modal isOpen={!!reviewTarget} onClose={() => setReviewTarget(null)} title="Leave a Review">
         <div className="space-y-4">
           <div>
             <label className="label">Rating</label>
-            <StarRating
-              rating={rating}
-              size="md"
-              interactive
-              onChange={setRating}
-            />
+            <StarRating rating={rating} size="md" interactive onChange={setRating} />
           </div>
           <div>
             <label className="label">Comment (optional)</label>
@@ -178,5 +200,25 @@ export function BookingsPage() {
         </div>
       </Modal>
     </Layout>
+  );
+}
+
+function PhotoGrid({ title, urls, emptyText }: { title: string; urls: string[]; emptyText: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{title}</p>
+      {urls.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">{emptyText}</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {urls.map((url, i) => (
+            <a key={i} href={url} target="_blank" rel="noreferrer"
+              className="aspect-square rounded-lg overflow-hidden bg-gray-100 block">
+              <img src={url} alt={`Photo ${i + 1}`} className="h-full w-full object-cover hover:opacity-90 transition-opacity" />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
