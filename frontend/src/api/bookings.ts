@@ -36,8 +36,8 @@ export async function getBooking(id: string) {
   return res.data.data as Booking;
 }
 
-export async function cancelBooking(id: string) {
-  await bookingClient.delete(`/bookings/${id}`);
+export async function cancelBooking(id: string, reason?: string) {
+  await bookingClient.delete(`/bookings/${id}`, { data: { reason } });
 }
 
 export async function completeBooking(id: string) {
@@ -126,6 +126,9 @@ export interface Booking {
   afterPhotoKeys?: string[];
   beforePhotoUrls?: string[];
   afterPhotoUrls?: string[];
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  cancellationReason?: string | null;
 }
 
 export interface Review {

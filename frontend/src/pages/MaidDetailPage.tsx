@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMaid } from '../api/users';
 import { getMaidSlots, createBooking, getMaidReviews } from '../api/bookings';
@@ -17,9 +17,15 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 export function MaidDetailPage() {
-  const { maidId }   = useParams<{ maidId: string }>();
-  const navigate     = useNavigate();
-  const qc           = useQueryClient();
+  const { maidId }    = useParams<{ maidId: string }>();
+  const navigate      = useNavigate();
+  const qc            = useQueryClient();
+  const [searchParams] = useSearchParams();
+
+  // Pre-fill hints from filter/scheduler
+  const urlDate         = searchParams.get('date') ?? '';
+  const urlTime         = searchParams.get('time') ?? '';
+  const urlCleaningType = searchParams.get('cleaningType') ?? '';
 
   const today        = new Date();
   const fromDate     = format(today, 'yyyy-MM-dd');
@@ -51,10 +57,18 @@ export function MaidDetailPage() {
   const [customEnd, setCustomEnd]        = useState('');
   const [address, setAddress]            = useState('');
   const [postal, setPostal]              = useState('');
-  const [notes, setNotes]                = useState('');
+  const [notes, setNotes]                = useState(urlCleaningType ? `Cleaning type: ${urlCleaningType}` : '');
   const [isBooking, setIsBooking]        = useState(false);
   const [bookError, setBookError]        = useState<string | null>(null);
   const [showSuccess, setShowSuccess]    = useState(false);
+
+  // Auto-select slot matching URL date+time
+  useEffect(() => {
+    if (!urlDate || !urlTime || slots.length === 0 || selectedSlot) return;
+    const target = `${urlDate}T${urlTime}`;
+    const match = slots.find(s => s.startAt.startsWith(target));
+    if (match) setSelectedSlot(match);
+  }, [slots, urlDate, urlTime, selectedSlot]);
 
   async function handleBook(e: React.FormEvent) {
     e.preventDefault();
@@ -98,7 +112,17 @@ export function MaidDetailPage() {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-5xl mx-auto">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         {/* ── Left: Profile ── */}
         <div className="lg:col-span-2 space-y-6">
@@ -147,7 +171,7 @@ export function MaidDetailPage() {
                   {maid.recurringAvailability.map(slot => (
                     <div key={slot.id} className="flex gap-3 text-sm">
                       <span className="w-10 text-gray-500">{DAY_LABELS[slot.dayOfWeek]}</span>
-                      <span>{slot.startTime} – {slot.endTime}</span>
+                      <span>{slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}</span>
                     </div>
                   ))}
                 </div>
@@ -184,10 +208,23 @@ export function MaidDetailPage() {
           <div className="card sticky top-24">
             <h2 className="font-semibold text-gray-900 mb-4">Book a Cleaning</h2>
 
+            {/* Pre-fill hint from filters/chat */}
+            {(urlDate || urlCleaningType) && (
+              <div className="mb-3 rounded-lg bg-brand-50 border border-brand-200 p-3 text-xs text-brand-700">
+                {urlCleaningType && <p className="font-medium">{urlCleaningType}</p>}
+                {urlDate && urlTime && (
+                  <p>Looking for {format(new Date(`${urlDate}T${urlTime}`), 'EEE, MMM d')} at {urlTime}</p>
+                )}
+                {urlDate && !urlTime && (
+                  <p>Looking for availability on {format(new Date(urlDate + 'T00:00:00'), 'EEE, MMM d')}</p>
+                )}
+              </div>
+            )}
+
             {/* Available slots (next 7 days) */}
             <div className="mb-4">
               <label className="label">Select a start time</label>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-48 overflow-y-scroll pr-1">
                 {slots.length === 0
                   ? <p className="text-xs text-gray-500">No available slots in the next 7 days.</p>
                   : slots.map(slot => (
@@ -250,6 +287,7 @@ export function MaidDetailPage() {
             )}
           </div>
         </div>
+      </div>
       </div>
 
       {showSuccess && (

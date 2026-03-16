@@ -5,26 +5,50 @@ export async function getEstimatorPhotoUploadUrl() {
   return res.data.data as { uploadUrl: string; s3Key: string };
 }
 
-/** Uploads a JPEG image directly to S3 via pre-signed PUT URL. */
+/** Uploads an image directly to S3 via pre-signed PUT URL. */
 export async function uploadEstimatorPhotoToS3(uploadUrl: string, file: File) {
   const res = await fetch(uploadUrl, {
     method:  'PUT',
-    headers: { 'Content-Type': 'image/jpeg' },
+    headers: { 'Content-Type': file.type || 'image/jpeg' },
     body:    file,
   });
   if (!res.ok) throw new Error(`Photo upload failed (${res.status})`);
 }
 
+// ── Response types ────────────────────────────────────────────────────────────
+
+export interface ChecklistTask {
+  task:      string;
+  priority:  'high' | 'medium' | 'standard';
+  aiNote?:   string;  // e.g. "Heavy grease residue visible on stovetop"
+}
+
+export interface RoomChecklist {
+  room:  string;
+  tasks: ChecklistTask[];
+}
+
+export interface RoomBreakdown {
+  room:             string;
+  condition:        'pristine' | 'average' | 'messy' | 'very_messy';
+  estimatedMinutes: number;
+  notes:            string;
+  priorityTasks:    string[];
+}
+
 export interface EstimatorAnalysisResult {
-  conditionAssessment: string;
-  adjustedCondition:   'pristine' | 'average' | 'messy' | 'very_messy';
+  overallCondition:    'pristine' | 'average' | 'messy' | 'very_messy';
   matchesSelfReport:   boolean;
-  cleaningTypeNote:    string;
+  conditionAssessment: string;
+  roomBreakdown:       RoomBreakdown[];
   oneCleanerHours:     number;
   twoCleanerHours:     number;
-  keyAreas:            string[];
-  confidenceNote:      string;
+  cleaningTypeNote?:   string;
+  generatedChecklist:  RoomChecklist[];
+  confidenceNote?:     string;
 }
+
+// ── API call ──────────────────────────────────────────────────────────────────
 
 export async function analyzeEstimatorPhotos(data: {
   bedrooms:     number;
@@ -32,11 +56,11 @@ export async function analyzeEstimatorPhotos(data: {
   sqftRange:    string;
   condition:    string;
   extras:       string[];
-  photoS3Keys:  string[];
   cleaningType: string;
   pets:         boolean;
   cookingFreq:  string;
   cookingStyle: string;
+  rooms:        Array<{ room: string; photoS3Keys: string[] }>;
 }) {
   const res = await usersClient.post('/users/me/estimator/analyze', data);
   return res.data.data.analysis as EstimatorAnalysisResult;

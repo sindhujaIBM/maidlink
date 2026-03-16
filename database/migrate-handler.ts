@@ -207,6 +207,30 @@ CREATE TABLE estimator_analyses (
 CREATE INDEX estimator_analyses_user_day ON estimator_analyses (user_id, created_at);
     `,
   },
+  {
+    name: '014_booking_soft_delete.sql',
+    sql: `
+ALTER TABLE bookings
+  ADD COLUMN cancelled_at     TIMESTAMPTZ,
+  ADD COLUMN cancelled_by     UUID REFERENCES users(id),
+  ADD COLUMN cancellation_reason TEXT;
+    `,
+  },
+  {
+    name: '015_refresh_tokens.sql',
+    sql: `
+CREATE TABLE refresh_tokens (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token      TEXT        NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ
+);
+CREATE INDEX idx_refresh_tokens_token   ON refresh_tokens(token);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+    `,
+  },
 ];
 
 export const handler = async (): Promise<{ statusCode: number; body: string }> => {

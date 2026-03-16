@@ -320,9 +320,16 @@ export const cancelHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
     throw new ValidationError('Booking is already cancelled');
   }
 
+  const body = event.body ? JSON.parse(event.body) as { reason?: string } : {};
+
   await pool.query(
-    `UPDATE bookings SET status = 'CANCELLED' WHERE id = $1`,
-    [id]
+    `UPDATE bookings
+     SET status = 'CANCELLED',
+         cancelled_at     = NOW(),
+         cancelled_by     = $2,
+         cancellation_reason = $3
+     WHERE id = $1`,
+    [id, auth.userId, body.reason ?? null]
   );
 
   return noContent();
@@ -332,21 +339,24 @@ export const cancelHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
 
 function formatBooking(row: Record<string, unknown>) {
   return {
-    id:              row.id,
-    customerId:      row.customer_id,
-    maidId:          row.maid_id,
-    status:          row.status,
-    startAt:         row.start_at || row.during,
-    endAt:           row.end_at,
-    addressLine1:    row.address_line1,
-    addressLine2:    row.address_line2,
-    city:            row.city,
-    postalCode:      row.postal_code,
-    notes:           row.notes,
-    totalPrice:      row.total_price,
-    createdAt:       row.created_at,
-    beforePhotoKeys: row.before_photo_keys || [],
-    afterPhotoKeys:  row.after_photo_keys  || [],
+    id:                 row.id,
+    customerId:         row.customer_id,
+    maidId:             row.maid_id,
+    status:             row.status,
+    startAt:            row.start_at || row.during,
+    endAt:              row.end_at,
+    addressLine1:       row.address_line1,
+    addressLine2:       row.address_line2,
+    city:               row.city,
+    postalCode:         row.postal_code,
+    notes:              row.notes,
+    totalPrice:         row.total_price,
+    createdAt:          row.created_at,
+    cancelledAt:        row.cancelled_at   ?? null,
+    cancelledBy:        row.cancelled_by   ?? null,
+    cancellationReason: row.cancellation_reason ?? null,
+    beforePhotoKeys:    row.before_photo_keys || [],
+    afterPhotoKeys:     row.after_photo_keys  || [],
   };
 }
 

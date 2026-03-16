@@ -14,7 +14,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  login: (accessToken: string, user: AuthUser) => void;
+  login: (accessToken: string, user: AuthUser, refreshToken?: string) => void;
   logout: () => void;
   updateSession: (accessToken: string, user: AuthUser) => void;
   isAuthenticated: boolean;
@@ -23,8 +23,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const TOKEN_KEY = 'maidlink_token';
-const USER_KEY  = 'maidlink_user';
+const TOKEN_KEY         = 'maidlink_token';
+const REFRESH_TOKEN_KEY = 'maidlink_refresh_token';
+const USER_KEY          = 'maidlink_user';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken]     = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
@@ -34,40 +35,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return stored ? JSON.parse(stored) : null;
     } catch { return null; }
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Validate stored token on mount (basic expiry check)
+  // On mount: validate token, try silent refresh if expired
   useEffect(() => {
-    if (!token) return;
-    try {
-      const [, payload] = token.split('.');
-      const decoded = JSON.parse(atob(payload));
-      if (decoded.exp * 1000 < Date.now()) {
-        // Token expired — clear session
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
+    async function initAuth() {
+      const storedToken = localStorage.getItem(TOKEN_KEY);
+      if (!storedToken) { setIsLoading(false); return; }
+
+      try {
+        const [, payload] = storedToken.split('.');
+        const decoded = JSON.parse(atob(payload));
+        if (decoded.exp * 1000 > Date.now()) {
+          // Token still valid — keep it
+          setIsLoading(false);
+          return;
+        }
+      } catch {
+        // Malformed — fall through to refresh attempt
       }
-    } catch {
-      // Malformed token
+
+      // Token expired or malformed — try refresh
+      const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (storedRefresh) {
+        try {
+          const AUTH_BASE = (import.meta as any).env?.VITE_AUTH_API_URL || '/api/auth';
+          const { default: axios } = await import('axios');
+          const res = await axios.post(`${AUTH_BASE}/auth/refresh`, { refreshToken: storedRefresh });
+          const { accessToken, refreshToken: newRefresh, user: freshUser } = res.data.data;
+          setToken(accessToken);
+          setUser(freshUser);
+          localStorage.setItem(TOKEN_KEY, accessToken);
+          localStorage.setItem(REFRESH_TOKEN_KEY, newRefresh);
+          localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+          setIsLoading(false);
+          return;
+        } catch {
+          // Refresh failed — clear everything
+        }
+      }
+
       setToken(null);
       setUser(null);
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      setIsLoading(false);
     }
-    setIsLoading(false);
+
+    initAuth();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const login = useCallback((accessToken: string, authUser: AuthUser) => {
+  const login = useCallback((accessToken: string, authUser: AuthUser, refreshToken?: string) => {
     setToken(accessToken);
     setUser(authUser);
     localStorage.setItem(TOKEN_KEY, accessToken);
     localStorage.setItem(USER_KEY, JSON.stringify(authUser));
+    if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   }, []);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   }, []);
 

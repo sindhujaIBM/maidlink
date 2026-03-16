@@ -1,0 +1,125 @@
+# MaidLink — Features & Proposals
+
+_Last updated: 2026-03-13_
+
+## Status Legend
+- ✅ **Done** — Implemented and deployed (or ready to deploy)
+- 🔴 **P0** — Blocking revenue / operations
+- 🟠 **P1** — Core marketplace trust
+- 🟡 **P2** — Retention & growth
+- 🟢 **P3** — Operational maturity
+- 💡 **Idea** — Not yet prioritised
+
+---
+
+## Implemented
+
+### Booking & Availability
+- ✅ **Booking creation** — Concurrency-safe via PostgreSQL TSRANGE EXCLUDE constraint + SELECT FOR UPDATE
+- ✅ **Booking completion flow** — Customer or maid can mark CONFIRMED → COMPLETED once start time has passed
+- ✅ **Booking cancellation** — Customer or maid can cancel CONFIRMED bookings
+- ✅ **Maid availability management** — Recurring weekly slots + one-off overrides (available/blocked)
+
+### Maid Discovery
+- ✅ **Maid listing & search** — Filter by postal code FSA, date, start time (covers slot + 3h), max rate, min rating, cleaning type (pre-fills booking form)
+- ✅ **Maid detail page** — Profile, weekly availability, reviews, booking form; pre-fills slot/cleaning type from URL params passed by filters or chat
+
+### Estimator
+- ✅ **Cleaning time estimator** — Formula-based: bedrooms × 0.5 + bathrooms × 0.75 + sqft/500, with type/condition/pets/cooking multipliers and extras; rounding to 0.5h (≤4h) or 1h (>4h)
+- ✅ **3-step AI estimator wizard** — Step 1: home details + live formula estimate; Step 2: per-room photo upload (min 5 / max 10 total, up to 4 per room); Step 3: AI results with room breakdown + checklist
+- ✅ **Per-room AI analysis** — Nova Lite analyses photos labelled by room; returns per-room condition, minutes estimate, and priority tasks; overall 1/2-cleaner hour total
+- ✅ **AI-generated cleaning checklist** — Customised per home from photos; tasks have priority (high/medium/standard) + AI note explaining why flagged; accordion UI; downloadable as .txt file
+- ✅ **Standard checklist data** — Full residential checklist in `frontend/src/data/cleaningChecklist.ts` by room and cleaning type; used as AI reference baseline
+- ✅ **Estimator → booking hand-off** — S3 keys + AI checklist stored in sessionStorage and attached to booking; checklist available for maid job briefing
+
+### Smart Scheduling
+- ✅ **Floating AI chat widget** — Available on every page (bottom-right); collects date, time, cleaning type, postal code via conversation; shows matching available maids inline; clicking a maid pre-fills the booking form
+- ✅ **Scheduler chat backend** — `POST /users/me/scheduler/chat`; stateless Nova Lite conversation with system prompt; parses `BOOKING_INTENT:{...}` token from AI response
+
+### Profiles & Trust
+- ✅ **Reviews & ratings** — 1–5 star + text review after COMPLETED booking; average shown on maid card and detail page
+- ✅ **Maid verification badge** — Admin-controlled; verified badge displayed on card and profile
+- ✅ **Before/after photos** — Maid uploads completion photos; customer can view before (estimator) and after photos on booking detail
+
+### Maid Dashboard
+- ✅ **Maid earnings dashboard** — Total earned, this month, pending, completed and upcoming booking lists
+
+### Admin
+- ✅ **Admin maid approval queue** — Approve/reject maid profiles; verification badge management
+
+### Auth & Security
+- ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
+- ✅ **Booking soft deletes** — Cancellations record `cancelled_at`, `cancelled_by`, `cancellation_reason` instead of hard-deleting
+
+---
+
+## Roadmap
+
+### P0 — Blocking Revenue
+
+#### Payments (Stripe)
+`total_price` is calculated and stored but no money moves. Stripe Payment Intents: hold at booking time, capture on completion, refund on cancellation.
+
+#### Transactional Emails
+No notifications exist. SES/SendGrid templates: booking confirmed, 24h reminder, cancellation, maid approved/rejected.
+
+---
+
+### P1 — Core Trust
+
+#### Cancellation Policy & Refund Logic
+Free cancellation 48h+, 50% within 24h, no refund same-day. Protects maid income. Requires Payments first.
+
+---
+
+### P2 — Retention & Growth
+
+#### Recurring Bookings
+"Every Friday at 10am" — the #1 retention driver. `booking_series` table + interval logic + auto-generation of future bookings.
+
+#### Customer Saved Preferences
+Save address and favourite maids. Auto-populate address on booking form. "Favourite" list on customer profile.
+
+---
+
+### P3 — Operational Maturity
+
+#### Admin: Dispute Resolution
+Dispute flag on bookings; admin can manually complete or refund. Needed once payments exist.
+
+---
+
+## Architectural Concerns
+
+These are known gaps in the current architecture — not blocking for MVP but important before scaling.
+
+| Concern | Impact | Notes |
+|---------|--------|-------|
+| **Aurora cold starts** | 1–3s first request after idle | No RDS Proxy; direct Lambda→Aurora connection. Warm Lambda helps but RDS can still cold-start. Consider RDS Proxy once traffic picks up. |
+| **No API rate limiting** | Abuse / runaway costs | API Gateway usage plans or a WAF rule would limit per-IP/user request rates. AI endpoints (Bedrock) are especially exposed — only a DB-level daily limit exists on the estimator. |
+| **AI calls are synchronous** | 10–30s Lambda timeout risk | Bedrock InvokeModel is called inline. Under load or model latency spikes, Lambdas can timeout. Consider SQS + async processing with WebSocket/polling for Bedrock calls. |
+| **No React error boundary** | Uncaught render errors crash whole app | A top-level `<ErrorBoundary>` would catch rendering errors and show a fallback UI instead of a blank screen. |
+| **Refresh token storage (localStorage)** | XSS risk | Refresh tokens in localStorage are accessible to JS. HttpOnly cookies would be more secure but require same-domain backend or a BFF layer. Acceptable for MVP. |
+| **No token revocation on logout** | Stolen token usable until expiry | Access tokens (24h) aren't revoked server-side on logout. A token blocklist (Redis or DB) would fix this. |
+
+---
+
+## AI Ideas
+
+### Done
+- ✅ AI photo estimator — 3-step wizard, per-room analysis, Nova Lite (us-west-2)
+- ✅ AI-generated cleaning checklist — per home, per room, from photos, downloadable
+- ✅ Smart scheduling chat widget
+
+### Ready to Build
+- **Post-cleaning report** — Maid uploads before/after photos; AI generates a short summary report (what was cleaned, condition change) emailed to the customer. Low effort given existing Bedrock + S3 setup.
+- **Review summarization** — Auto-summarize a maid's reviews into 2–3 bullet points shown on the profile card. No new infra needed.
+
+### Medium Effort
+- **Personalized maid recommendations** — Rank maids on the listing page based on the customer's past bookings, stated home type, and cleaning preferences. Requires storing customer preferences.
+- **Maid earnings optimizer** — Suggest optimal availability windows based on demand patterns (most-requested days/times in each FSA). Needs enough booking data to be meaningful.
+
+### Larger Scope
+- **Demand forecasting** — Predict busy periods in Calgary so the platform can prompt maids to open availability or run promotions.
+- **Anomaly detection** — Flag suspicious bookings or reviews (price manipulation, fake reviews, fraud patterns). Admin-facing.
+- **Job briefing for maids** — AI-generated checklist already stored in sessionStorage at booking time. Next step: surface it on the maid's booking detail page and optionally email it via SES. Low effort from current state.

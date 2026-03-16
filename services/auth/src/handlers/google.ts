@@ -8,8 +8,11 @@
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { randomBytes } from 'crypto';
 import { getPool, signToken, toErrorResponse, ValidationError } from '@maidlink/shared';
 import { exchangeCodeForTokens, verifyIdToken } from '../lib/googleOAuth';
+
+const REFRESH_TTL_DAYS = 30;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -92,12 +95,20 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
         maidProfileId,
       });
 
+      // 5. Issue refresh token (30-day, single-use rotation)
+      const refreshToken = randomBytes(32).toString('hex');
+      await client.query(
+        `INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + $3::interval)`,
+        [user.id, refreshToken, `${REFRESH_TTL_DAYS} days`]
+      );
+
       return {
         statusCode: 200,
         headers: CORS_HEADERS,
         body: JSON.stringify({
           data: {
             accessToken,
+            refreshToken,
             user: {
               id:       user.id,
               email:    user.email,

@@ -6,6 +6,9 @@ export async function listMaids(params?: {
   postalCode?: string;
   minRate?: number;
   maxRate?: number;
+  availableDate?: string;
+  startTime?: string;
+  minRating?: number;
   page?: number;
 }) {
   const res = await usersClient.get('/users/maids', { params });

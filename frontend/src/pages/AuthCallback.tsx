@@ -38,9 +38,11 @@ export function AuthCallback() {
         const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI
           || `${window.location.origin}/auth/callback`;
 
-        const { accessToken, user } = await exchangeGoogleCode(code, redirectUri);
-        login(accessToken, user);
-        navigate('/dashboard');
+        const { accessToken, refreshToken, user } = await exchangeGoogleCode(code, redirectUri);
+        login(accessToken, user, refreshToken);
+        const returnTo = sessionStorage.getItem('authReturnTo') || '/dashboard';
+        sessionStorage.removeItem('authReturnTo');
+        navigate(returnTo);
       } catch (err) {
         console.error('Auth callback failed:', err);
         navigate('/?error=auth_failed');

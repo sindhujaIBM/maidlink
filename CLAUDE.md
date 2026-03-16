@@ -19,7 +19,7 @@ npm run dev          # start all services + frontend concurrently
 - **DB:** Aurora Serverless v2 (PostgreSQL 15.10), direct Lambda connection
 - **Auth:** Google OAuth 2.0 → HS256 JWT (24h expiry)
 - **Storage:** S3 private bucket + pre-signed URLs
-- **AI:** Amazon Nova Lite (`us.amazon.nova-lite-v1:0`) via Bedrock us-west-2, fallback to Claude 3.5 Haiku (`us.anthropic.claude-3-5-haiku-20241022-v1:0`)
+- **AI:** Amazon Nova Lite (`us.amazon.nova-lite-v1:0`) via Bedrock us-west-2 — Haiku fallback removed (Anthropic use-case form not submitted for this account; `ResourceNotFoundException` if used)
 - **Region:** `ca-west-1`
 
 ## Service Ports (local)
@@ -30,6 +30,12 @@ npm run dev          # start all services + frontend concurrently
 | Booking  | 3003  | 3103   |
 | Admin    | 4004  | 4104   |
 | Frontend | 5173  | —      |
+
+## FEATURES.md
+`FEATURES.md` is the living feature registry. After implementing any feature — no matter how small — update it:
+- Move the feature to the **Implemented** section with a ✅ and a one-line description
+- Remove it from the roadmap/ideas sections if it was listed there
+- Add any new ideas or follow-up tasks that surfaced during implementation
 
 ## Key Rules
 - **Package manager: npm only** — never use yarn or pnpm

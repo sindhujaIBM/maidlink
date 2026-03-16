@@ -6,7 +6,7 @@ import {
   getPhotoUploadUrl, uploadPhotoToS3,
   getIdDocUploadUrl, uploadIdDocToS3,
 } from '../../api/users';
-import { refreshToken } from '../../api/auth';
+import { refreshAccessToken } from '../../api/auth';
 import { useAuth } from '../../contexts/AuthContext';
 import { CALGARY_FSA_CODES } from '../../constants/calgary';
 import { Layout } from '../../components/layout/Layout';
@@ -51,8 +51,12 @@ export function MaidSetupPage() {
     qc.invalidateQueries({ queryKey: ['myMaidProfile'] });
     if (isNew) {
       try {
-        const { accessToken, user } = await refreshToken();
-        updateSession(accessToken, user);
+        const storedRefresh = localStorage.getItem('maidlink_refresh_token');
+        if (storedRefresh) {
+          const { accessToken, refreshToken: newRefresh, user } = await refreshAccessToken(storedRefresh);
+          localStorage.setItem('maidlink_refresh_token', newRefresh);
+          updateSession(accessToken, user);
+        }
       } catch { /* non-fatal — token will update on next sign-in */ }
     }
     navigate('/maid/availability');

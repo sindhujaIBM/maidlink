@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navbar } from './Navbar';
+import { SchedulerChat } from '../scheduler/SchedulerChat';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ export function Layout({ children }: LayoutProps) {
       <footer className="border-t border-brand-200 py-6 text-center text-sm text-brand-500">
         © {new Date().getFullYear()} MaidLink · Calgary Home Cleaning
       </footer>
+      <SchedulerChat />
     </div>
   );
 }

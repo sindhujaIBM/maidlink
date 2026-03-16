@@ -30,7 +30,7 @@ export function BookingsPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: cancelBooking,
+    mutationFn: (id: string) => cancelBooking(id),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['bookings'] }),
   });
 

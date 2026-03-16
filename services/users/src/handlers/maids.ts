@@ -8,7 +8,7 @@ import { withAuth, ok, getPool, NotFoundError } from '@maidlink/shared';
 import { getPhotoUrl } from '../lib/s3';
 
 export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
-  const { postalCode, minRate, maxRate, page = '1', limit = '20' } =
+  const { postalCode, minRate, maxRate, availableDate, startTime, minRating, page = '1', limit = '20' } =
     (event.queryStringParameters || {}) as Record<string, string>;
 
   const pool = getPool();
@@ -26,6 +26,44 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
 
   if (minRate) { conditions.push(`mp.hourly_rate >= $${idx++}`); values.push(Number(minRate)); }
   if (maxRate) { conditions.push(`mp.hourly_rate <= $${idx++}`); values.push(Number(maxRate)); }
+
+  // Filter by availability: maid must have a recurring slot covering the requested date/time
+  if (availableDate) {
+    const dateIdx = idx++;
+    values.push(availableDate);
+
+    if (startTime) {
+      const timeIdx = idx++;
+      values.push(startTime);
+      conditions.push(`EXISTS (
+        SELECT 1 FROM availability_recurring ar
+        WHERE ar.maid_id = mp.id
+          AND ar.day_of_week = UPPER(TO_CHAR($${dateIdx}::date, 'DY'))
+          AND ar.start_time <= $${timeIdx}::time
+          AND ar.end_time >= ($${timeIdx}::time + interval '3 hours')
+          AND NOT EXISTS (
+            SELECT 1 FROM availability_overrides ao
+            WHERE ao.maid_id = mp.id
+              AND ao.override_date = $${dateIdx}::date
+              AND ao.is_available = false
+          )
+      )`);
+    } else {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM availability_recurring ar
+        WHERE ar.maid_id = mp.id
+          AND ar.day_of_week = UPPER(TO_CHAR($${dateIdx}::date, 'DY'))
+          AND NOT EXISTS (
+            SELECT 1 FROM availability_overrides ao
+            WHERE ao.maid_id = mp.id
+              AND ao.override_date = $${dateIdx}::date
+              AND ao.is_available = false
+          )
+      )`);
+    }
+  }
+
+  if (minRating) { conditions.push(`COALESCE(r.avg_rating, 0) >= $${idx++}`); values.push(Number(minRating)); }
 
   const offset = (Number(page) - 1) * Number(limit);
   values.push(Number(limit), offset);

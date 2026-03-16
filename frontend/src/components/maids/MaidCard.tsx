@@ -5,15 +5,17 @@ import { VerifiedBadge } from '../ui/VerifiedBadge';
 
 interface MaidCardProps {
   maid: MaidListItem;
+  detailLink?: string;
 }
 
-export function MaidCard({ maid }: MaidCardProps) {
+export function MaidCard({ maid, detailLink }: MaidCardProps) {
   const rate = parseFloat(maid.hourlyRate).toFixed(2);
   const avatar = maid.photoUrl || maid.user.avatarUrl;
   const avgRating = parseFloat(maid.avgRating);
+  const link = detailLink ?? `/maids/${maid.id}`;
 
   return (
-    <div className="card hover:shadow-md transition-shadow">
+    <Link to={link} className="block card hover:shadow-md transition-shadow no-underline">
       <div className="flex items-start gap-4">
         {/* Avatar */}
         <div className="flex-shrink-0">
@@ -57,10 +59,8 @@ export function MaidCard({ maid }: MaidCardProps) {
       </div>
 
       <div className="mt-4 flex justify-end">
-        <Link to={`/maids/${maid.id}`} className="btn-primary text-sm px-4 py-1.5">
-          View Profile
-        </Link>
+        <span className="btn-primary text-sm px-4 py-1.5">View Profile</span>
       </div>
-    </div>
+    </Link>
   );
 }

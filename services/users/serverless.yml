@@ -139,6 +139,15 @@ functions:
           method: post
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  schedulerChat:
+    handler: src/handlers/schedulerChat.handler
+    timeout: 30
+    events:
+      - http:
+          path: /users/me/scheduler/chat
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
 custom:
   esbuild:
     bundle: true

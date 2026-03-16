@@ -4,6 +4,7 @@ export async function exchangeGoogleCode(code: string, redirectUri: string) {
   const res = await authClient.post('/auth/google', { code, redirectUri });
   return res.data.data as {
     accessToken: string;
+    refreshToken: string;
     user: {
       id: string;
       email: string;
@@ -19,10 +20,11 @@ export async function getMe() {
   return res.data.data;
 }
 
-export async function refreshToken() {
-  const res = await authClient.post('/auth/refresh');
+export async function refreshAccessToken(refreshToken: string) {
+  const res = await authClient.post('/auth/refresh', { refreshToken });
   return res.data.data as {
     accessToken: string;
+    refreshToken: string;
     user: {
       id: string;
       email: string;
