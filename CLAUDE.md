@@ -46,6 +46,7 @@ npm run dev          # start all services + frontend concurrently
 - S3 presigned PUT URLs must NOT include `ContentLength` in the PutObjectCommand — S3 enforces an exact byte match and will reject any upload that doesn't match, causing silent failures
 - `pg` error code `23P01` = exclusion_violation → return 409 Conflict (used for no-double-booking constraint)
 - `btree_gist` extension must exist (migration 001) for TSRANGE EXCLUDE constraint
+- **SES is not available in `ca-west-1`** — always use `us-east-1` for the SES client; SES IaC lives in `infrastructure/serverless-ses.yml` (separate stack, deploys to `us-east-1`)
 
 ## Migrations
 Migrations are hardcoded inline in `database/migrate-handler.ts` — adding a `.sql` file to `database/migrations/` is NOT enough. You must also add the migration entry to the `MIGRATIONS` array in `migrate-handler.ts`. To run migrations in production:
@@ -57,6 +58,10 @@ npx serverless remove --stage prod
 
 ## Deploy
 ```bash
+# SES identity (one-time, us-east-1):
+cd infrastructure && npx serverless deploy -c serverless-ses.yml --stage prod --region us-east-1
+# Then add the 3 DKIM CNAME records output to maidlink.app Route 53 hosted zone
+
 # All services + frontend:
 ./deploy-services.sh
 

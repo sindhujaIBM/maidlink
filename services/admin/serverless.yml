@@ -108,6 +108,30 @@ functions:
           method: get
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  listMaidApplications:
+    handler: src/handlers/maidApplications.listHandler
+    events:
+      - http:
+          path: /admin/maid-applications
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  approveMaidApplication:
+    handler: src/handlers/maidApplications.approveHandler
+    events:
+      - http:
+          path: /admin/maid-applications/{id}/approve
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  rejectMaidApplication:
+    handler: src/handlers/maidApplications.rejectHandler
+    events:
+      - http:
+          path: /admin/maid-applications/{id}/reject
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
 custom:
   esbuild:
     bundle: true

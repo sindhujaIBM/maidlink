@@ -42,6 +42,11 @@ provider:
             - arn:aws:s3:::${env:PHOTOS_BUCKET, 'maidlink-photos-local'}/*
         - Effect: Allow
           Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: '*'
+        - Effect: Allow
+          Action:
             - bedrock:InvokeModel
           Resource:
             - arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0
@@ -146,6 +151,22 @@ functions:
       - http:
           path: /users/me/scheduler/chat
           method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  submitMaidApplication:
+    handler: src/handlers/maidApplication.submitHandler
+    events:
+      - http:
+          path: /users/maid-applications
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  listMaidApplications:
+    handler: src/handlers/maidApplication.listHandler
+    events:
+      - http:
+          path: /users/maid-applications
+          method: get
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
 custom:

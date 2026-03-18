@@ -1,6 +1,6 @@
 # MaidLink — Features & Proposals
 
-_Last updated: 2026-03-13_
+_Last updated: 2026-03-17_
 
 ## Status Legend
 - ✅ **Done** — Implemented and deployed (or ready to deploy)
@@ -46,6 +46,7 @@ _Last updated: 2026-03-13_
 
 ### Admin
 - ✅ **Admin maid approval queue** — Approve/reject maid profiles; verification badge management
+- ✅ **Maid application email notification** — SES email sent to muni@maidlink.ca on every become-a-maid form submission; includes all applicant fields; fire-and-forget (does not block 201 response)
 
 ### Auth & Security
 - ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
@@ -61,7 +62,7 @@ _Last updated: 2026-03-13_
 `total_price` is calculated and stored but no money moves. Stripe Payment Intents: hold at booking time, capture on completion, refund on cancellation.
 
 #### Transactional Emails
-No notifications exist. SES/SendGrid templates: booking confirmed, 24h reminder, cancellation, maid approved/rejected.
+Maid application intake → admin notification is live. Still missing: booking confirmed, 24h reminder, cancellation, maid approved/rejected.
 
 ---
 

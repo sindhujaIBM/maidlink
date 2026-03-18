@@ -45,6 +45,21 @@ export async function listAdminUsers(params?: { page?: number }) {
   return res.data.data as AdminUser[];
 }
 
+export async function listMaidApplications(params?: { status?: string }) {
+  const res = await adminClient.get('/admin/maid-applications', { params });
+  return res.data.data as MaidApplication[];
+}
+
+export async function approveMaidApplication(id: string) {
+  const res = await adminClient.post(`/admin/maid-applications/${id}/approve`);
+  return res.data.data;
+}
+
+export async function rejectMaidApplication(id: string, notes?: string) {
+  const res = await adminClient.post(`/admin/maid-applications/${id}/reject`, { notes });
+  return res.data.data;
+}
+
 export interface AdminMaid {
   id: string;
   status: string;
@@ -81,6 +96,30 @@ export interface AdminBooking {
   customerEmail: string;
   maidName: string;
   maidEmail: string;
+}
+
+export interface MaidApplication {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  gender: string;
+  age: number;
+  workEligibility: string;
+  yearsExperience: number;
+  bio: string | null;
+  hourlyRatePref: string | null;
+  hasOwnSupplies: boolean;
+  canDrive: boolean;
+  offersCooking: boolean;
+  languages: string[];
+  availability: string;
+  referralSource: string | null;
+  hasPhoto: boolean;
+  hasIdDoc: boolean;
+  status: string;
+  notes: string | null;
+  createdAt: string;
 }
 
 export interface AdminUser {
