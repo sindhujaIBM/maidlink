@@ -51,5 +51,8 @@ docker-compose.override.yml
 *.p12
 secrets/
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Test artifacts
 *.snap
