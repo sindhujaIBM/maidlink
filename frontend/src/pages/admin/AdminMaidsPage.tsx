@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listAdminMaids, approveMaid, rejectMaid, verifyMaid, unverifyMaid, getAdminIdDocUrl,
-  listMaidApplications, approveMaidApplication, rejectMaidApplication,
+  listMaidApplications, approveMaidApplication, rejectMaidApplication, getApplicationIdDocUrl,
   type AdminMaid, type MaidApplication,
 } from '../../api/admin';
 import { Layout } from '../../components/layout/Layout';
@@ -81,6 +81,15 @@ export function AdminMaidsPage() {
     }
   }
 
+  async function handleViewAppIdDoc(appId: string) {
+    try {
+      const { url } = await getApplicationIdDocUrl(appId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      alert('Could not load ID document.');
+    }
+  }
+
   return (
     <Layout>
       <div className="max-w-5xl mx-auto">
@@ -124,6 +133,13 @@ export function AdminMaidsPage() {
               {applications?.map(app => (
                 <div key={app.id} className="card">
                   <div className="flex items-start justify-between gap-4">
+                    {/* Photo thumbnail */}
+                    <div className="h-14 w-14 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      {app.photoUrl
+                        ? <img src={app.photoUrl} alt={app.fullName} className="h-full w-full object-cover" />
+                        : <span className="text-gray-400 text-2xl">👤</span>
+                      }
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-semibold text-gray-900">{app.fullName}</span>
@@ -132,20 +148,35 @@ export function AdminMaidsPage() {
                           app.status === 'approved' ? 'bg-green-100 text-green-800' :
                                                       'bg-red-100 text-red-800'
                         }`}>{app.status}</span>
+                        <span className="text-xs text-gray-400 ml-auto">{new Date(app.createdAt).toLocaleDateString('en-CA')}</span>
                       </div>
-                      <div className="text-sm text-gray-500 space-y-0.5">
+                      <div className="text-sm text-gray-500 space-y-1">
                         <p>{app.email} · {app.phone}</p>
                         <p>{app.gender} · Age {app.age} · {WORK_ELIGIBILITY_LABELS[app.workEligibility] ?? app.workEligibility}</p>
-                        <p>{app.yearsExperience} yrs exp · {app.availability}{app.hourlyRatePref ? ` · $${parseFloat(app.hourlyRatePref).toFixed(0)}/hr pref` : ''}</p>
-                        <p className="flex flex-wrap gap-2 mt-1">
+                        <p>{app.yearsExperience} yrs exp · <span className="capitalize">{app.availability.replace('_', ' ')}</span>{app.hourlyRatePref ? ` · $${parseFloat(app.hourlyRatePref).toFixed(0)}/hr pref` : ''}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
                           {app.hasOwnSupplies && <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Has supplies</span>}
                           {app.canDrive       && <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Can drive</span>}
                           {app.offersCooking  && <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Offers cooking</span>}
-                          {app.languages.map(l => <span key={l} className="text-xs bg-gray-100 px-2 py-0.5 rounded">{l}</span>)}
-                        </p>
-                        {app.bio && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{app.bio}</p>}
-                        {app.notes && <p className="text-xs text-red-500 mt-1">Notes: {app.notes}</p>}
-                        {app.referralSource && <p className="text-xs text-gray-400">Via: {app.referralSource}</p>}
+                          {app.languages.map(l => <span key={l} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{l}</span>)}
+                        </div>
+                        <div className="flex gap-2 mt-1 items-center">
+                          {app.hasIdDoc
+                            ? <button onClick={() => handleViewAppIdDoc(app.id)} className="text-xs text-brand-600 hover:underline">View ID Document</button>
+                            : <span className="text-xs text-gray-400">No ID doc</span>
+                          }
+                          {app.referralSource && <span className="text-xs bg-gray-50 text-gray-500 px-2 py-0.5 rounded">Via: {app.referralSource}</span>}
+                        </div>
+                        {app.bio && (
+                          <div className="mt-1 max-h-20 overflow-y-auto rounded border border-gray-100 bg-gray-50 p-2 text-xs text-gray-500 leading-relaxed">
+                            {app.bio}
+                          </div>
+                        )}
+                        {app.notes && (
+                          <div className="mt-1 max-h-16 overflow-y-auto rounded border border-red-100 bg-red-50 p-2 text-xs text-red-600 leading-relaxed">
+                            <span className="font-medium">Notes:</span> {app.notes}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {app.status === 'new' && (
@@ -207,7 +238,11 @@ export function AdminMaidsPage() {
                   <p className="text-sm text-gray-600 mt-1">
                     ${parseFloat(maid.hourlyRate).toFixed(2)}/hr · {maid.yearsExperience} yrs exp · {maid.serviceAreaCodes.join(', ')}
                   </p>
-                  {maid.bio && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{maid.bio}</p>}
+                  {maid.bio && (
+                    <div className="text-sm text-gray-500 mt-1 max-h-16 overflow-y-auto leading-relaxed">
+                      {maid.bio}
+                    </div>
+                  )}
                   {maid.rejectedReason && (
                     <p className="text-xs text-red-600 mt-1">Rejection reason: {maid.rejectedReason}</p>
                   )}

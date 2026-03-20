@@ -132,6 +132,14 @@ functions:
           method: post
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  getMaidApplicationIdDocUrl:
+    handler: src/handlers/maidApplications.getIdDocUrlHandler
+    events:
+      - http:
+          path: /admin/maid-applications/{id}/id-doc-url
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
 custom:
   esbuild:
     bundle: true

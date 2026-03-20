@@ -1,11 +1,13 @@
 /**
- * GET  /admin/maid-applications         — list applications (filterable by status)
+ * GET  /admin/maid-applications              — list applications (filterable by status)
  * POST /admin/maid-applications/:id/approve
  * POST /admin/maid-applications/:id/reject
+ * GET  /admin/maid-applications/:id/id-doc-url
  */
 
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { withAuth, ok, getPool, NotFoundError } from '@maidlink/shared';
+import { getPhotoViewUrl, getIdDocViewUrl } from '../lib/s3';
 
 export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
   const { status = 'new' } = (event.queryStringParameters || {}) as Record<string, string>;
@@ -16,7 +18,7 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
      ORDER BY created_at DESC`,
     [status]
   );
-  return ok(rows.map((r: Record<string, unknown>) => ({
+  const applications = await Promise.all(rows.map(async (r: Record<string, unknown>) => ({
     id:              r.id,
     fullName:        r.full_name,
     email:           r.email,
@@ -34,11 +36,13 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
     availability:    r.availability,
     referralSource:  r.referral_source,
     hasPhoto:        !!r.photo_s3_key,
+    photoUrl:        r.photo_s3_key ? await getPhotoViewUrl(r.photo_s3_key as string) : null,
     hasIdDoc:        !!r.id_doc_s3_key,
     status:          r.status,
     notes:           r.notes,
     createdAt:       r.created_at,
   })));
+  return ok(applications);
 }, ['ADMIN']);
 
 export const approveHandler = withAuth(async (event: APIGatewayProxyEvent) => {
@@ -51,6 +55,20 @@ export const approveHandler = withAuth(async (event: APIGatewayProxyEvent) => {
   );
   if (rows.length === 0) throw new NotFoundError('Application not found');
   return ok({ id });
+}, ['ADMIN']);
+
+export const getIdDocUrlHandler = withAuth(async (event: APIGatewayProxyEvent) => {
+  const id = event.pathParameters?.id;
+  if (!id) throw new NotFoundError('Missing id');
+  const pool = getPool();
+  const { rows: [app] } = await pool.query(
+    'SELECT id_doc_s3_key FROM maid_applications WHERE id = $1',
+    [id]
+  );
+  if (!app) throw new NotFoundError('Application not found');
+  if (!app.id_doc_s3_key) throw new NotFoundError('No ID document uploaded for this application');
+  const url = await getIdDocViewUrl(app.id_doc_s3_key);
+  return ok({ url });
 }, ['ADMIN']);
 
 export const rejectHandler = withAuth(async (event: APIGatewayProxyEvent) => {

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { listAdminMaids, listAdminBookings, listAdminUsers } from '../../api/admin';
+import { listAdminBookings, listAdminUsers, listMaidApplications } from '../../api/admin';
 import { Layout } from '../../components/layout/Layout';
 import { Spinner } from '../../components/ui/Spinner';
 
@@ -14,9 +14,9 @@ function StatCard({ label, value, to }: { label: string; value: number | string;
 }
 
 export function AdminDashboard() {
-  const { data: pendingData, isLoading: loadingMaids } = useQuery({
-    queryKey: ['adminMaids', 'PENDING'],
-    queryFn:  () => listAdminMaids({ status: 'PENDING' }),
+  const { data: newApplications = [], isLoading: loadingApplications } = useQuery({
+    queryKey: ['maidApplications', 'new'],
+    queryFn:  () => listMaidApplications({ status: 'new' }),
   });
   const { data: bookings = [], isLoading: loadingBookings } = useQuery({
     queryKey: ['adminBookings'],
@@ -27,7 +27,7 @@ export function AdminDashboard() {
     queryFn:  () => listAdminUsers(),
   });
 
-  const isLoading = loadingMaids || loadingBookings || loadingUsers;
+  const isLoading = loadingApplications || loadingBookings || loadingUsers;
 
   return (
     <Layout>
@@ -39,7 +39,7 @@ export function AdminDashboard() {
           ? <div className="flex justify-center py-16"><Spinner /></div>
           : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <StatCard label="Pending Approvals" value={pendingData?.total ?? 0} to="/admin/maids" />
+              <StatCard label="Pending Approvals" value={newApplications.length} to="/admin/maids" />
               <StatCard label="Active Bookings"   value={bookings.length}           to="/admin/bookings" />
               <StatCard label="Total Users"        value={users.length}             to="/admin/users" />
             </div>

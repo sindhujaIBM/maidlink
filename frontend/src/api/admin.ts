@@ -60,6 +60,11 @@ export async function rejectMaidApplication(id: string, notes?: string) {
   return res.data.data;
 }
 
+export async function getApplicationIdDocUrl(id: string) {
+  const res = await adminClient.get(`/admin/maid-applications/${id}/id-doc-url`);
+  return res.data.data as { url: string };
+}
+
 export interface AdminMaid {
   id: string;
   status: string;
@@ -116,6 +121,7 @@ export interface MaidApplication {
   availability: string;
   referralSource: string | null;
   hasPhoto: boolean;
+  photoUrl: string | null;
   hasIdDoc: boolean;
   status: string;
   notes: string | null;
