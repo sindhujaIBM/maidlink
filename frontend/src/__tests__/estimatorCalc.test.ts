@@ -1,18 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calcHours, buildRoomList } from '../lib/estimatorCalc';
 
-// Shorthand: calcHours with all defaults (Standard, Normal, no pets, no extras)
-const calc = (
-  bedrooms: number,
-  bathrooms: number,
-  sqft: number,
-  overrides: Partial<Parameters<typeof calcHours>[3] extends infer T ? Record<string, unknown> : never> = {},
-) => calcHours(
-  bedrooms, bathrooms, sqft,
-  'Standard Cleaning', 'Normal',
-  false, 'Rarely', 'Light', [],
-);
-
 // ── Base formula ──────────────────────────────────────────────────────────────
 
 describe('calcHours — base formula', () => {
