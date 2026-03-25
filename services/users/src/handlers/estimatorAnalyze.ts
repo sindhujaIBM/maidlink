@@ -91,7 +91,7 @@ ${CHECKLIST_REFERENCE}
 Instructions:
 1. Analyse each room's photos for: clutter level, dust, grease, stains, soap scum, pet hair, floor condition, and any specific areas needing extra attention.
 2. For each room: assign a condition (pristine/average/messy/very_messy), estimate cleaning time in minutes, and list the 2-3 most important tasks.
-3. Build a customised cleaning checklist per room. Include only tasks relevant to what you see. Add a brief aiNote on HIGH priority tasks explaining what you observed (e.g. "Heavy grease residue on stovetop visible").
+3. Build a customised cleaning checklist per room. Include only tasks relevant to what you see. Add a brief Note on HIGH priority tasks explaining what you observed (e.g. "Heavy grease residue on stovetop visible").
 4. Calculate total time for 1 and 2 cleaners. Apply these multipliers to the base time:
    - Deep Cleaning: ×1.5 | Move-Out/Move-In: ×2
    - Condition: messy ×1.25, very_messy ×1.5

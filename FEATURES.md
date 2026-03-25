@@ -1,6 +1,6 @@
 # MaidLink — Features & Proposals
 
-_Last updated: 2026-03-17_
+_Last updated: 2026-03-25_
 
 ## Status Legend
 - ✅ **Done** — Implemented and deployed (or ready to deploy)
@@ -26,9 +26,9 @@ _Last updated: 2026-03-17_
 
 ### Estimator
 - ✅ **Cleaning time estimator** — Formula-based: bedrooms × 0.5 + bathrooms × 0.75 + sqft/500, with type/condition/pets/cooking multipliers and extras; rounding to 0.5h (≤4h) or 1h (>4h)
-- ✅ **3-step AI estimator wizard** — Step 1: home details + live formula estimate; Step 2: per-room photo upload (min 5 / max 10 total, up to 4 per room); Step 3: AI results with room breakdown + checklist
+- ✅ **3-step AI estimator wizard** — Step 1: home details + live formula estimate; Step 2: per-room photo upload (min 5 / max 10 total, up to 5 per room); Step 3: AI results with room breakdown + checklist
 - ✅ **Per-room AI analysis** — Nova Lite analyses photos labelled by room; returns per-room condition, minutes estimate, and priority tasks; overall 1/2-cleaner hour total
-- ✅ **AI-generated cleaning checklist** — Customised per home from photos; tasks have priority (high/medium/standard) + AI note explaining why flagged; accordion UI; downloadable as .txt file
+- ✅ **AI-generated cleaning checklist** — Customised per home from photos; tasks have priority (high/medium/standard) + AI note explaining why flagged; accordion UI; downloadable as PDF (Part 1: AI highlights, Part 2: full standard checklist filtered by cleaning type)
 - ✅ **Standard checklist data** — Full residential checklist in `frontend/src/data/cleaningChecklist.ts` by room and cleaning type; used as AI reference baseline
 - ✅ **Estimator → booking hand-off** — S3 keys + AI checklist stored in sessionStorage and attached to booking; checklist available for maid job briefing
 
@@ -51,6 +51,9 @@ _Last updated: 2026-03-17_
 ### Auth & Security
 - ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
 - ✅ **Booking soft deletes** — Cancellations record `cancelled_at`, `cancelled_by`, `cancellation_reason` instead of hard-deleting
+
+### Testing
+- ✅ **Vitest unit test suite** — 88 tests across 6 files; covers shared validation, JWT, errors, booking pricing, tstzrange builder, and estimator calc formula; runs in 235ms with no DB or AWS required (`npm test`)
 
 ---
 
@@ -87,6 +90,9 @@ Save address and favourite maids. Auto-populate address on booking form. "Favour
 
 #### Admin: Dispute Resolution
 Dispute flag on bookings; admin can manually complete or refund. Needed once payments exist.
+
+#### SES Bounce & Complaint Handling (SNS)
+Currently all SES sends are fire-and-forget — bounces and spam complaints are invisible. High bounce/complaint rates cause AWS to throttle or suspend SES account-wide. Fix: create an SES Configuration Set, attach an SNS topic for bounce + complaint events, subscribe a Lambda that logs to DB and alerts admin. Must be in place before transactional emails go to customers at scale (booking confirmations, reminders). Low urgency while only sending internal admin notifications at low volume.
 
 ---
 

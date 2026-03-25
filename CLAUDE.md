@@ -10,6 +10,8 @@ npm run db:up        # start local Postgres (Docker)
 npm run db:migrate   # run migrations
 npm run db:seed      # seed dev data
 npm run dev          # start all services + frontend concurrently
+npm test             # run all unit tests (Vitest, no DB needed)
+npm run test:watch   # watch mode during development
 ```
 
 ## Stack
@@ -36,6 +38,13 @@ npm run dev          # start all services + frontend concurrently
 - Move the feature to the **Implemented** section with a ✅ and a one-line description
 - Remove it from the roadmap/ideas sections if it was listed there
 - Add any new ideas or follow-up tasks that surfaced during implementation
+
+## Testing
+- **Framework:** Vitest — configured via `vitest.workspace.ts` at root; covers `packages/shared`, `services/booking`, and `frontend`
+- **Unit tests** (no DB, no AWS): `packages/shared/src/__tests__/`, `services/booking/src/__tests__/*.unit.test.ts`, `frontend/src/__tests__/`
+- **Integration tests** (Phase 2, requires Docker DB): `services/*/src/__tests__/*.integration.test.ts` — run `npm run db:up` first
+- **Estimator calc logic** lives in `frontend/src/lib/estimatorCalc.ts` (extracted from widget) — import from there, not from the component
+- `jest` remains in devDependencies but is unused — Vitest is the test runner
 
 ## Key Rules
 - **Package manager: npm only** — never use yarn or pnpm
