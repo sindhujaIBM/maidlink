@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/sindhuja/Desktop/maidlink/.claude/pre-deploy-check.sh",
+            "timeout": 300,
+            "statusMessage": "Running pre-deploy checks (tests + build)..."
+          }
+        ]
+      }
+    ]
+  }
+}
