@@ -1,0 +1,46 @@
+service: maidlink-rds-migrate
+frameworkVersion: '3'
+
+plugins:
+  - serverless-esbuild
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ca-west-1
+  stage: prod
+  timeout: 300
+  environment:
+    # Aurora source (existing, stays running during migration)
+    SOURCE_DB_HOST: maidlink-infra-prod-rdscluster-gcbzimdjjqt2.cluster-cspqotkdhyca.ca-west-1.rds.amazonaws.com
+    TARGET_DB_HOST: maidlink-postgres-prod.cspqotkdhyca.ca-west-1.rds.amazonaws.com
+    # RDS-managed secret ARN (from create-db-instance output: MasterUserSecret.SecretArn)
+    TARGET_SECRET_ARN: arn:aws:secretsmanager:ca-west-1:946839354953:secret:rds!db-044137a1-6c60-4f05-99d1-bf28c1eeaed2-UJ4NHI
+  vpc:
+    securityGroupIds:
+      - sg-055801edf871f4e60    # LambdaSG (same as other Lambdas)
+    subnetIds:
+      - subnet-0a8738edb8eff6309   # PrivateSubnetA
+      - subnet-06ab0c4c50c4a06bc   # PrivateSubnetB
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: '*'
+
+functions:
+  runRdsMigration:
+    handler: rds-migration-handler.handler
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: false
+    target: node20
+    platform: node
+    external:
+      - pg-native
+      - '@aws-sdk/client-secrets-manager'

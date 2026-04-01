@@ -13,7 +13,7 @@ SECRET=$(aws secretsmanager get-secret-value \
   --secret-id /maidlink/prod/rds-credentials \
   --region ca-west-1 --query SecretString --output text)
 
-export DB_HOST="maidlink-infra-prod-rdscluster-gcbzimdjjqt2.cluster-cspqotkdhyca.ca-west-1.rds.amazonaws.com"
+export DB_HOST="maidlink-postgres-prod.cspqotkdhyca.ca-west-1.rds.amazonaws.com"
 export DB_PORT="5432"
 export DB_NAME="maidlink"
 export DB_USER=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['username'])")

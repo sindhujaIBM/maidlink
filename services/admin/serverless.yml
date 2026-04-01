@@ -41,7 +41,7 @@ provider:
           Action:
             - s3:GetObject
           Resource:
-            - arn:aws:s3:::maidlink-photos-*/*
+            - arn:aws:s3:::${env:PHOTOS_BUCKET}/*
 
 functions:
   listAdminMaids:
@@ -137,6 +137,14 @@ functions:
     events:
       - http:
           path: /admin/maid-applications/{id}/id-doc-url
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  listEstimatorAnalyses:
+    handler: src/handlers/estimatorAnalyses.handler
+    events:
+      - http:
+          path: /admin/estimator/analyses
           method: get
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 

@@ -69,7 +69,7 @@ npx serverless remove --stage prod
 ```bash
 # SES identity (one-time, us-east-1):
 cd infrastructure && npx serverless deploy -c serverless-ses.yml --stage prod --region us-east-1
-# Then add the 3 DKIM CNAME records output to maidlink.app Route 53 hosted zone
+# Then add the 3 DKIM CNAME records output to maidlink.ca Route 53 hosted zone
 
 # All services + frontend:
 ./deploy-services.sh
@@ -81,7 +81,7 @@ aws cloudfront create-invalidation --distribution-id E2C1HS3K184GKW --paths "/*"
 ```
 
 ## Production URLs
-- App: https://maidlink.app
+- App: https://maidlink.ca
 - Auth API: https://w60uleji5c.execute-api.ca-west-1.amazonaws.com/prod
 - Users API: https://rh9nojf0g0.execute-api.ca-west-1.amazonaws.com/prod
 - Booking API: https://mu054qkxab.execute-api.ca-west-1.amazonaws.com/prod

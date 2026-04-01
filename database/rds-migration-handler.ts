@@ -1,10 +1,15 @@
 /**
- * One-shot migration Lambda.
- * Deploy, invoke once, then remove with: npx serverless remove --stage prod
+ * One-shot RDS migration Lambda.
+ * 1. Runs all 17 migrations on the new RDS t4g.micro instance.
+ * 2. Copies all data from Aurora (SOURCE_DB_HOST) → new RDS (TARGET_DB_HOST).
+ *
+ * Deploy, invoke once, then: npx serverless remove -c serverless-rds-migrate.yml --stage prod
  */
 
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { Client } from 'pg';
+
+// ── All 17 migrations (same as migrate-handler.ts) ──────────────────────────
 
 const MIGRATIONS: Array<{ name: string; sql: string }> = [
   {
@@ -267,40 +272,28 @@ ALTER TABLE maid_applications
   ADD COLUMN offers_cooking BOOLEAN NOT NULL DEFAULT false;
     `,
   },
-  {
-    name: '018_estimator_analyses_result.sql',
-    sql: `
-ALTER TABLE estimator_analyses
-  ADD COLUMN home_details  JSONB,
-  ADD COLUMN photo_s3_keys TEXT[] NOT NULL DEFAULT '{}',
-  ADD COLUMN result        JSONB;
-    `,
-  },
 ];
 
-export const handler = async (): Promise<{ statusCode: number; body: string }> => {
+// ── Table copy order (respects FK dependencies) ──────────────────────────────
+
+const TABLES_IN_ORDER = [
+  'users',
+  'user_roles',
+  'maid_profiles',
+  'availability_recurring',
+  'availability_overrides',
+  'bookings',
+  'reviews',
+  'estimator_analyses',
+  'maid_applications',
+  'refresh_tokens',
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function runMigrations(client: Client): Promise<string[]> {
   const results: string[] = [];
 
-  // Fetch DB credentials from Secrets Manager
-  const sm = new SecretsManagerClient({ region: 'ca-west-1' });
-  const secret = await sm.send(
-    new GetSecretValueCommand({ SecretId: '/maidlink/prod/rds-credentials' })
-  );
-  const creds = JSON.parse(secret.SecretString!);
-
-  const client = new Client({
-    host:     process.env.DB_HOST || 'localhost',
-    port:     5432,
-    database: 'maidlink',
-    user:     creds.username,
-    password: creds.password,
-    ssl:      { rejectUnauthorized: false },
-  });
-
-  await client.connect();
-  results.push('Connected to database');
-
-  // Ensure tracking table exists
   await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       filename   TEXT        PRIMARY KEY,
@@ -317,21 +310,121 @@ export const handler = async (): Promise<{ statusCode: number; body: string }> =
       results.push(`SKIP  ${name}`);
       continue;
     }
-    try {
-      await client.query('BEGIN');
-      await client.query(sql);
-      await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [name]);
-      await client.query('COMMIT');
-      results.push(`APPLY ${name}`);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      await client.end();
-      const msg = err instanceof Error ? err.message : String(err);
-      return { statusCode: 500, body: JSON.stringify({ error: msg, results }) };
-    }
+    await client.query('BEGIN');
+    await client.query(sql);
+    await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [name]);
+    await client.query('COMMIT');
+    results.push(`APPLY ${name}`);
   }
 
-  await client.end();
-  results.push('All migrations complete');
-  return { statusCode: 200, body: JSON.stringify({ results }) };
+  return results;
+}
+
+async function copyTable(source: Client, target: Client, table: string): Promise<string> {
+  const { rows } = await source.query(`SELECT * FROM ${table}`);
+  if (rows.length === 0) return `COPY ${table}: 0 rows`;
+
+  const cols = Object.keys(rows[0]);
+  const quotedCols = cols.map(c => `"${c}"`).join(', ');
+  const BATCH = 50;
+  let inserted = 0;
+
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const vals: unknown[] = [];
+    const placeholders = batch.map((row, ri) => {
+      const rowPh = cols.map((col, ci) => {
+        vals.push(row[col]);
+        return `$${ri * cols.length + ci + 1}`;
+      });
+      return `(${rowPh.join(', ')})`;
+    });
+
+    await target.query(
+      `INSERT INTO ${table} (${quotedCols}) VALUES ${placeholders.join(', ')} ON CONFLICT DO NOTHING`,
+      vals
+    );
+    inserted += batch.length;
+  }
+
+  return `COPY ${table}: ${inserted} rows`;
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
+
+export const handler = async (): Promise<{ statusCode: number; body: string }> => {
+  const results: string[] = [];
+
+  const sm = new SecretsManagerClient({ region: 'ca-west-1' });
+
+  const sourceHost = process.env.SOURCE_DB_HOST;
+  const targetHost = process.env.TARGET_DB_HOST;
+  if (!sourceHost || !targetHost) {
+    return { statusCode: 500, body: 'SOURCE_DB_HOST and TARGET_DB_HOST must be set' };
+  }
+
+  // Aurora credentials (existing secret)
+  const sourceSecret = await sm.send(
+    new GetSecretValueCommand({ SecretId: '/maidlink/prod/rds-credentials' })
+  );
+  const sourceCreds = JSON.parse(sourceSecret.SecretString!);
+
+  // RDS-managed credentials (auto-created by --manage-master-user-password)
+  const targetSecret = await sm.send(
+    new GetSecretValueCommand({ SecretId: process.env.TARGET_SECRET_ARN! })
+  );
+  const targetCreds = JSON.parse(targetSecret.SecretString!);
+
+  const source = new Client({
+    host: sourceHost, port: 5432, database: 'maidlink',
+    user: sourceCreds.username, password: sourceCreds.password,
+    ssl: { rejectUnauthorized: false },
+  });
+  const target = new Client({
+    host: targetHost, port: 5432, database: 'maidlink',
+    user: targetCreds.username, password: targetCreds.password,
+    ssl: { rejectUnauthorized: false },
+  });
+
+  try {
+    await source.connect();
+    results.push('Connected to source (Aurora)');
+
+    await target.connect();
+    results.push('Connected to target (RDS PostgreSQL)');
+
+    // Step 1: Run all migrations on target
+    results.push('--- Running migrations on target ---');
+    const migResults = await runMigrations(target);
+    results.push(...migResults);
+
+    // Step 2: Copy data table by table
+    results.push('--- Copying data ---');
+    for (const table of TABLES_IN_ORDER) {
+      try {
+        const msg = await copyTable(source, target, table);
+        results.push(msg);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push(`ERROR ${table}: ${msg}`);
+        // Continue with other tables — don't abort
+      }
+    }
+
+    // Step 3: Verify row counts match
+    results.push('--- Verifying row counts ---');
+    for (const table of TABLES_IN_ORDER) {
+      const { rows: [src] } = await source.query(`SELECT COUNT(*)::int AS n FROM ${table}`);
+      const { rows: [tgt] } = await target.query(`SELECT COUNT(*)::int AS n FROM ${table}`);
+      const match = src.n === tgt.n ? '✓' : '✗ MISMATCH';
+      results.push(`${match} ${table}: source=${src.n} target=${tgt.n}`);
+    }
+
+    results.push('Migration complete');
+  } finally {
+    await source.end().catch(() => {});
+    await target.end().catch(() => {});
+  }
+
+  return { statusCode: 200, body: JSON.stringify({ results }, null, 2) };
 };

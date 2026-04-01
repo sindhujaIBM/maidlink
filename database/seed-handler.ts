@@ -37,6 +37,14 @@ ON CONFLICT (user_id, role) DO NOTHING;
     `,
   },
   {
+    name: '004_grant_admin_munivku.sql',
+    sql: `
+INSERT INTO user_roles (user_id, role)
+SELECT id, 'ADMIN' FROM users WHERE email = 'munivku@gmail.com'
+ON CONFLICT (user_id, role) DO NOTHING;
+    `,
+  },
+  {
     name: '002_sample_maids.sql',
     sql: `
 INSERT INTO users (id, google_sub, email, full_name)

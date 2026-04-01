@@ -14,12 +14,14 @@ import { MaidSetupPage }     from './pages/maid/MaidSetupPage';
 import { AvailabilityPage }  from './pages/maid/AvailabilityPage';
 import { MaidBookingsPage }  from './pages/maid/MaidBookingsPage';
 import { EarningsPage }      from './pages/maid/EarningsPage';
-import { AdminDashboard }    from './pages/admin/AdminDashboard';
-import { AdminMaidsPage }    from './pages/admin/AdminMaidsPage';
-import { AdminBookingsPage } from './pages/admin/AdminBookingsPage';
-import { AdminLoginPage }    from './pages/admin/AdminLoginPage';
-import { DevLoginPage }      from './pages/DevLoginPage';
-import { EstimatorPage }    from './pages/EstimatorPage';
+import { AdminDashboard }      from './pages/admin/AdminDashboard';
+import { AdminMaidsPage }      from './pages/admin/AdminMaidsPage';
+import { AdminBookingsPage }   from './pages/admin/AdminBookingsPage';
+import { AdminLoginPage }      from './pages/admin/AdminLoginPage';
+import { AdminEstimatorPage }  from './pages/admin/AdminEstimatorPage';
+import { DevLoginPage }        from './pages/DevLoginPage';
+import { EstimatorPage }       from './pages/EstimatorPage';
+import { EstimatorHistoryPage } from './pages/EstimatorHistoryPage';
 import { MaidApplicationPage } from './pages/MaidApplicationPage';
 
 export default function App() {
@@ -36,9 +38,10 @@ export default function App() {
           {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
 
           {/* Any authenticated user */}
-          <Route path="/dashboard" element={<RequireRole><DashboardPage /></RequireRole>} />
-          <Route path="/bookings"  element={<RequireRole><BookingsPage /></RequireRole>} />
-          <Route path="/profile"   element={<RequireRole><ProfilePage /></RequireRole>} />
+          <Route path="/dashboard"         element={<RequireRole><DashboardPage /></RequireRole>} />
+          <Route path="/bookings"          element={<RequireRole><BookingsPage /></RequireRole>} />
+          <Route path="/profile"           element={<RequireRole><ProfilePage /></RequireRole>} />
+          <Route path="/estimate/history"  element={<RequireRole><EstimatorHistoryPage /></RequireRole>} />
 
           {/* Customer */}
           <Route path="/maids"      element={<RequireRole><MaidListPage /></RequireRole>} />
@@ -53,9 +56,10 @@ export default function App() {
           <Route path="/maid/apply"        element={<RequireRole><MaidSetupPage /></RequireRole>} />
 
           {/* Admin-only */}
-          <Route path="/admin"          element={<RequireRole roles={['ADMIN']}><AdminDashboard /></RequireRole>} />
-          <Route path="/admin/maids"    element={<RequireRole roles={['ADMIN']}><AdminMaidsPage /></RequireRole>} />
-          <Route path="/admin/bookings" element={<RequireRole roles={['ADMIN']}><AdminBookingsPage /></RequireRole>} />
+          <Route path="/admin"               element={<RequireRole roles={['ADMIN']}><AdminDashboard /></RequireRole>} />
+          <Route path="/admin/maids"         element={<RequireRole roles={['ADMIN']}><AdminMaidsPage /></RequireRole>} />
+          <Route path="/admin/bookings"      element={<RequireRole roles={['ADMIN']}><AdminBookingsPage /></RequireRole>} />
+          <Route path="/admin/estimator"     element={<RequireRole roles={['ADMIN']}><AdminEstimatorPage /></RequireRole>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

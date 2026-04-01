@@ -128,6 +128,46 @@ export interface MaidApplication {
   createdAt: string;
 }
 
+export interface AdminEstimatorAnalysis {
+  id:        string;
+  createdAt: string;
+  homeDetails: {
+    bedrooms:     number;
+    bathrooms:    number;
+    sqftRange:    string;
+    condition:    string;
+    extras:       string[];
+    cleaningType: string;
+    pets:         boolean;
+    cookingFreq:  string;
+    cookingStyle: string;
+    rooms:        Array<{ room: string; photoCount: number }>;
+  };
+  result: {
+    overallCondition:    string;
+    conditionAssessment: string;
+    oneCleanerHours:     number;
+    twoCleanerHours:     number;
+    cleaningTypeNote?:   string;
+    roomBreakdown:       Array<{ room: string; condition: string; estimatedMinutes: number; notes: string }>;
+    generatedChecklist:  Array<{ room: string; tasks: Array<{ task: string; priority: string; aiNote?: string }> }>;
+    coverageWarnings?:   Array<{ room: string; missing: string }>;
+    confidenceNote?:     string;
+  };
+  photoUrls: string[];
+  user: {
+    id:        string;
+    name:      string;
+    email:     string;
+    avatarUrl: string | null;
+  };
+}
+
+export async function listAdminEstimatorAnalyses(params?: { page?: number; limit?: number }) {
+  const res = await adminClient.get('/admin/estimator/analyses', { params });
+  return res.data.data as { items: AdminEstimatorAnalysis[]; total: number; page: number; limit: number };
+}
+
 export interface AdminUser {
   id: string;
   email: string;

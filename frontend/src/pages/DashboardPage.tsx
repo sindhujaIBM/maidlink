@@ -13,6 +13,7 @@ export function DashboardPage() {
 
   const cards = [
     { to: '/maids',            label: 'Browse Maids',        icon: '🔍', show: true },
+    { to: '/estimate',         label: 'Estimate Cleaning',   icon: '✨', show: true },
     { to: '/bookings',         label: 'My Bookings',          icon: '📅', show: true },
     { to: '/profile',          label: 'My Profile',           icon: '👤', show: true },
     { to: '/maid/setup',       label: 'Maid Profile',         icon: '🧹', show: hasRole('MAID') },

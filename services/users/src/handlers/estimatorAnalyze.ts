@@ -99,6 +99,11 @@ Instructions:
    - Add-ons: oven +60min, fridge +30min, windows +60min, basement +60min, laundry +30min, garage +45min
    Round to nearest 0.5h.
 5. Flag if the requested cleaning type should be upgraded (e.g. Standard → Deep) based on what you see.
+6. Assess photo coverage for each room:
+   - Count how many distinct wall perspectives / viewing angles are visible across all photos for that room.
+   - If fewer than 3 distinct angles are visible (e.g. only one corner was photographed, or all photos show the same wall), add an entry to coverageWarnings for that room.
+   - Be specific: name which areas are missing (e.g. "opposite wall", "floor and lower cabinets", "windows side").
+   - If coverage is sufficient for all rooms, return an empty coverageWarnings array.
 
 Respond ONLY with valid JSON, no markdown fences:
 {
@@ -127,7 +132,10 @@ Respond ONLY with valid JSON, no markdown fences:
       ]
     }
   ],
-  "confidenceNote": "Optional: note about photo quality or rooms not photographed"
+  "coverageWarnings": [
+    { "room": "Kitchen", "missing": "opposite wall and floor not visible — estimate may be less accurate" }
+  ],
+  "confidenceNote": "Optional: note about overall photo quality"
 }`;
 }
 
@@ -205,7 +213,10 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   }
 
   // Log before calling Bedrock (counts even on failure to prevent rapid-retry abuse)
-  await pool.query(`INSERT INTO estimator_analyses (user_id) VALUES ($1)`, [auth.userId]);
+  const { rows: [{ id: analysisId }] } = await pool.query<{ id: string }>(
+    `INSERT INTO estimator_analyses (user_id) VALUES ($1) RETURNING id`,
+    [auth.userId]
+  );
 
   // ── Fetch photos from S3, organised by room ───────────────────────────────
   const roomImages = await Promise.all(
@@ -223,6 +234,26 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Model returned unexpected format');
   const result = JSON.parse(jsonMatch[0]);
+
+  // Persist result so the user can review estimates historically
+  const homeDetails = {
+    bedrooms:     body.bedrooms,
+    bathrooms:    body.bathrooms,
+    sqftRange:    body.sqftRange,
+    condition:    body.condition,
+    extras:       body.extras,
+    cleaningType: body.cleaningType,
+    pets:         body.pets,
+    cookingFreq:  body.cookingFreq,
+    cookingStyle: body.cookingStyle,
+    rooms:        body.rooms.map(r => ({ room: r.room, photoCount: r.photoS3Keys.length })),
+  };
+  await pool.query(
+    `UPDATE estimator_analyses
+     SET home_details = $1, photo_s3_keys = $2, result = $3
+     WHERE id = $4`,
+    [homeDetails, allKeys, result, analysisId]
+  );
 
   return ok({ analysis: result });
 });

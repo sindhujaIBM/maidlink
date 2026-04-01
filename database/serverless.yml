@@ -11,7 +11,7 @@ provider:
   stage: prod
   timeout: 300
   environment:
-    DB_HOST: maidlink-infra-prod-rdscluster-gcbzimdjjqt2.cluster-cspqotkdhyca.ca-west-1.rds.amazonaws.com
+    DB_HOST: maidlink-postgres-prod.cspqotkdhyca.ca-west-1.rds.amazonaws.com
   vpc:
     securityGroupIds:
       - sg-055801edf871f4e60

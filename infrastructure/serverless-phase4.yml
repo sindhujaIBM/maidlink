@@ -188,8 +188,30 @@ resources:
           PasswordLength: 32
           ExcludeCharacters: '"@/\\'
 
-    # RDS PostgreSQL t3.micro — created via CLI, managed outside CloudFormation
-    # Endpoint: maidlink-postgres-prod.cspqotkdhyca.ca-west-1.rds.amazonaws.com
+    # ─── RDS PostgreSQL t4g.micro ─────────────────────────────────────────────
+    RdsPostgresInstance:
+      Type: AWS::RDS::DBInstance
+      DeletionPolicy: Snapshot
+      Properties:
+        DBInstanceIdentifier: maidlink-postgres-${self:provider.stage}
+        DBInstanceClass: db.t3.micro
+        Engine: postgres
+        EngineVersion: '15.12'
+        DBName: maidlink
+        MasterUsername: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:username}}'
+        MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:password}}'
+        DBSubnetGroupName: !Ref RdsSubnetGroup
+        VpcSecurityGroupIds:
+          - !Ref RdsSG
+        AllocatedStorage: 20
+        StorageType: gp2
+        MultiAZ: false
+        PubliclyAccessible: false
+        StorageEncrypted: true
+        BackupRetentionPeriod: 7
+        DeletionProtection: false
+        EnableCloudwatchLogsExports:
+          - postgresql
 
     # ─── S3 — Profile Photos ─────────────────────────────────────────────────
     PhotosBucket:
@@ -289,12 +311,12 @@ resources:
         Name: maidlink-${self:provider.stage}-LambdaSG
 
     RdsEndpoint:
-      Value: maidlink-postgres-prod.cspqotkdhyca.ca-west-1.rds.amazonaws.com
+      Value: !GetAtt RdsPostgresInstance.Endpoint.Address
       Export:
         Name: maidlink-${self:provider.stage}-RdsEndpoint
 
     RdsPostgresEndpoint:
-      Value: maidlink-postgres-prod.cspqotkdhyca.ca-west-1.rds.amazonaws.com
+      Value: !GetAtt RdsPostgresInstance.Endpoint.Address
       Export:
         Name: maidlink-${self:provider.stage}-RdsPostgresEndpoint
 

@@ -36,6 +36,11 @@ export interface RoomBreakdown {
   priorityTasks:    string[];
 }
 
+export interface CoverageWarning {
+  room:    string;
+  missing: string;
+}
+
 export interface EstimatorAnalysisResult {
   overallCondition:    'pristine' | 'average' | 'messy' | 'very_messy';
   matchesSelfReport:   boolean;
@@ -45,7 +50,34 @@ export interface EstimatorAnalysisResult {
   twoCleanerHours:     number;
   cleaningTypeNote?:   string;
   generatedChecklist:  RoomChecklist[];
+  coverageWarnings?:   CoverageWarning[];
   confidenceNote?:     string;
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+export interface EstimatorHistoryItem {
+  id:          string;
+  createdAt:   string;
+  homeDetails: {
+    bedrooms:     number;
+    bathrooms:    number;
+    sqftRange:    string;
+    condition:    string;
+    extras:       string[];
+    cleaningType: string;
+    pets:         boolean;
+    cookingFreq:  string;
+    cookingStyle: string;
+    rooms:        Array<{ room: string; photoCount: number }>;
+  };
+  result:    EstimatorAnalysisResult;
+  photoUrls: string[];
+}
+
+export async function getEstimatorHistory(): Promise<EstimatorHistoryItem[]> {
+  const res = await usersClient.get('/users/me/estimator/history');
+  return res.data.data.items as EstimatorHistoryItem[];
 }
 
 // ── API call ──────────────────────────────────────────────────────────────────

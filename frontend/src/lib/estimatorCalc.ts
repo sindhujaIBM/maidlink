@@ -1,5 +1,5 @@
 export type CleaningType   = 'Standard Cleaning' | 'Deep Cleaning' | 'Move-Out/Move-In Cleaning';
-export type HouseCondition = 'Normal' | 'Moderately Dirty' | 'Heavily Soiled';
+export type HouseCondition = 'Pristine' | 'Lightly Used' | 'Normal' | 'Moderately Dirty' | 'Heavily Soiled';
 export type CookingFreq    = 'Rarely' | 'Occasionally' | 'Frequently';
 export type CookingStyle   = 'Light' | 'Moderate' | 'Heavy';
 
@@ -42,6 +42,8 @@ export function calcHours(
   if (isMoveOut)                        base *= 2;
 
   // Condition multipliers
+  if (houseCondition === 'Pristine')         base *= 0.85;
+  // 'Lightly Used' and 'Normal' → ×1.0 (no change)
   if (houseCondition === 'Moderately Dirty') base *= 1.25;
   if (houseCondition === 'Heavily Soiled')   base *= 1.5;
 
@@ -63,9 +65,19 @@ export function calcHours(
 
 /**
  * Derives the ordered list of rooms to photograph from home details.
+ * Kitchen and Living Room are user-selectable (default true for backwards compat).
  */
-export function buildRoomList(bedrooms: number, bathrooms: number, extras: string[]): string[] {
-  const rooms: string[] = ['Kitchen', 'Living Room'];
+export function buildRoomList(
+  bedrooms:         number,
+  bathrooms:        number,
+  extras:           string[],
+  includeKitchen:   boolean = true,
+  includeLivingRoom: boolean = true,
+): string[] {
+  const rooms: string[] = [];
+
+  if (includeKitchen)    rooms.push('Kitchen');
+  if (includeLivingRoom) rooms.push('Living Room');
 
   for (let i = 1; i <= bedrooms; i++) {
     rooms.push(bedrooms === 1 ? 'Bedroom' : `Bedroom ${i}`);

@@ -57,6 +57,11 @@ export function AdminDashboard() {
             <h2 className="font-semibold text-gray-900">All Bookings</h2>
             <p className="text-sm text-gray-500 mt-1">View all platform bookings.</p>
           </Link>
+          <Link to="/admin/estimator" className="card hover:shadow-md transition-shadow">
+            <div className="text-2xl mb-2">✨</div>
+            <h2 className="font-semibold text-gray-900">Estimator Usage</h2>
+            <p className="text-sm text-gray-500 mt-1">View all customer AI estimates, photos, and AI responses.</p>
+          </Link>
         </div>
       </div>
     </Layout>

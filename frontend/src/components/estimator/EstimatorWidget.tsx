@@ -10,6 +10,7 @@ import {
   type EstimatorAnalysisResult,
 } from '../../api/estimator';
 import { CLEANING_CHECKLIST, type CleaningTypeKey } from '../../data/cleaningChecklist';
+import { CameraCapture } from './CameraCapture';
 import jsPDF from 'jspdf';
 
 // ── Types & constants ─────────────────────────────────────────────────────────
@@ -20,7 +21,7 @@ import {
 } from '../../lib/estimatorCalc';
 
 const CLEANING_TYPES: CleaningType[]    = ['Standard Cleaning', 'Deep Cleaning', 'Move-Out/Move-In Cleaning'];
-const HOUSE_CONDITIONS: HouseCondition[]= ['Normal', 'Moderately Dirty', 'Heavily Soiled'];
+const HOUSE_CONDITIONS: HouseCondition[]= ['Pristine', 'Lightly Used', 'Normal', 'Moderately Dirty', 'Heavily Soiled'];
 const COOKING_FREQS: CookingFreq[]      = ['Rarely', 'Occasionally', 'Frequently'];
 const COOKING_STYLES: CookingStyle[]    = ['Light', 'Moderate', 'Heavy'];
 
@@ -107,6 +108,15 @@ function downloadChecklist(
     y += 6;
   }
 
+  function subLabel(text: string) {
+    checkPage(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(text, ML, y);
+    y += 5;
+  }
+
   function noteText(text: string) {
     checkPage(6);
     doc.setFont('helvetica', 'italic');
@@ -174,23 +184,7 @@ function downloadChecklist(
   }
   y += 4;
 
-  // ── Part 1: AI priority highlights ───────────────────────────────────────────
-
-  sectionBanner('PART 1 — AI PRIORITY HIGHLIGHTS (from your photos)');
-
-  for (const rc of result.generatedChecklist) {
-    const bd = result.roomBreakdown.find(r => r.room === rc.room);
-    const label = bd ? `${rc.room}  (~${bd.estimatedMinutes} min)` : rc.room;
-    roomHeader(label);
-    if (bd?.notes) noteText(bd.notes);
-    for (const t of rc.tasks) taskRow(t.task, t.priority, t.aiNote ?? undefined);
-    y += 2;
-  }
-  y += 4;
-
-  // ── Part 2: Full standard checklist ──────────────────────────────────────────
-
-  sectionBanner('PART 2 — FULL CLEANING CHECKLIST');
+  // ── Room-by-room: AI highlights → full checklist ─────────────────────────────
 
   for (const roomDef of CLEANING_CHECKLIST) {
     const tasks = roomDef.items.filter(i => i.includedIn.includes(typeKey));
@@ -199,13 +193,37 @@ function downloadChecklist(
     const isOptional = roomDef.room === 'Basement' || roomDef.room === 'Garage';
     if (isOptional && !analysedRooms.has(roomDef.room.toLowerCase())) continue;
 
-    const count = roomDef.room === 'Bedroom' ? bedrooms
-      : roomDef.room === 'Bathroom' ? bathrooms : 1;
-    const label = count > 1 ? `${roomDef.room} (×${count})` : roomDef.room;
+    // Match AI rooms whose name starts with this room type (handles "Bedroom 1", "Bathroom 2", etc.)
+    const aiRooms      = result.generatedChecklist.filter(rc =>
+      rc.room.toLowerCase().startsWith(roomDef.room.toLowerCase())
+    );
+    const aiBreakdowns = result.roomBreakdown.filter(rb =>
+      rb.room.toLowerCase().startsWith(roomDef.room.toLowerCase())
+    );
 
-    roomHeader(label);
+    const count     = roomDef.room === 'Bedroom' ? bedrooms
+      : roomDef.room === 'Bathroom' ? bathrooms : 1;
+    const totalMins = aiBreakdowns.reduce((sum, b) => sum + b.estimatedMinutes, 0);
+    const timeStr   = totalMins > 0 ? `  ~${totalMins} min` : '';
+    const countStr  = count > 1 ? ` (×${count})` : '';
+
+    sectionBanner(`${roomDef.room.toUpperCase()}${countStr}${timeStr}`);
+
+    if (aiRooms.length > 0) {
+      subLabel('AI PRIORITY HIGHLIGHTS');
+      for (const rc of aiRooms) {
+        const bd = aiBreakdowns.find(b => b.room === rc.room);
+        if (count > 1) roomHeader(rc.room);
+        if (bd?.notes) noteText(bd.notes);
+        for (const t of rc.tasks) taskRow(t.task, t.priority, t.aiNote ?? undefined);
+        y += 1;
+      }
+      y += 2;
+    }
+
+    subLabel('FULL CHECKLIST');
     for (const item of tasks) taskRow(item.task, item.priority);
-    y += 2;
+    y += 4;
   }
 
   // ── Footer on every page ──────────────────────────────────────────────────────
@@ -308,16 +326,18 @@ export function EstimatorWidget() {
   const navigate = useNavigate();
 
   // Step 0 — form state
-  const [step,           setStep]          = useState(0);
-  const [bedrooms,       setBedrooms]      = useState(2);
-  const [bathrooms,      setBathrooms]     = useState(1);
-  const [sqft,           setSqft]          = useState(1000);
-  const [cleaningType,   setCleaningType]  = useState<CleaningType>('Standard Cleaning');
-  const [houseCondition, setHouseCondition]= useState<HouseCondition>('Normal');
-  const [pets,           setPets]          = useState(false);
-  const [cookingFreq,    setCookingFreq]   = useState<CookingFreq>('Occasionally');
-  const [cookingStyle,   setCookingStyle]  = useState<CookingStyle>('Moderate');
-  const [extras,         setExtras]        = useState<string[]>([]);
+  const [step,             setStep]            = useState(0);
+  const [bedrooms,         setBedrooms]        = useState(2);
+  const [bathrooms,        setBathrooms]       = useState(1);
+  const [sqft,             setSqft]            = useState(1000);
+  const [cleaningType,     setCleaningType]    = useState<CleaningType>('Standard Cleaning');
+  const [houseCondition,   setHouseCondition]  = useState<HouseCondition>('Normal');
+  const [pets,             setPets]            = useState(false);
+  const [cookingFreq,      setCookingFreq]     = useState<CookingFreq>('Occasionally');
+  const [cookingStyle,     setCookingStyle]    = useState<CookingStyle>('Moderate');
+  const [extras,           setExtras]          = useState<string[]>([]);
+  const [includeKitchen,   setIncludeKitchen]  = useState(true);
+  const [includeLivingRoom, setIncludeLivingRoom] = useState(true);
 
   // Step 1 — per-room photos
   type PhotoEntry = { file: File; preview: string; s3Key: string | null };
@@ -327,6 +347,10 @@ export function EstimatorWidget() {
   const [uploadError,  setUploadError] = useState<string | null>(null);
   const [activeRoom,   setActiveRoom]  = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Camera capture state
+  const [cameraRoom,        setCameraRoom]        = useState<string | null>(null);
+  const [cameraMaxCaptures, setCameraMaxCaptures] = useState(0);
 
   // Step 2 — results
   const [analyzing,    setAnalyzing]   = useState(false);
@@ -354,7 +378,7 @@ export function EstimatorWidget() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function goToStep1() {
-    const roomList = buildRoomList(bedrooms, bathrooms, extras);
+    const roomList = buildRoomList(bedrooms, bathrooms, extras, includeKitchen, includeLivingRoom);
     setRooms(roomList);
     setRoomPhotos(prev => {
       const next: Record<string, PhotoEntry[]> = {};
@@ -427,6 +451,40 @@ export function EstimatorWidget() {
     setAiResult(null);
   }
 
+  function openCamera(roomName: string) {
+    const roomCount  = roomPhotos[roomName]?.length ?? 0;
+    const maxForRoom = Math.min(MAX_PER_ROOM - roomCount, MAX_TOTAL - totalPhotos);
+    if (maxForRoom <= 0 || uploading) return;
+    setCameraRoom(roomName);
+    setCameraMaxCaptures(maxForRoom);
+  }
+
+  async function handleCameraCapture(roomName: string, file: File) {
+    const roomCount = roomPhotos[roomName]?.length ?? 0;
+    if (roomCount >= MAX_PER_ROOM || totalPhotos >= MAX_TOTAL) return;
+
+    setUploadError(null);
+    setUploading(true);
+
+    const startIdx = roomCount;
+    const entry: PhotoEntry = { file, preview: URL.createObjectURL(file), s3Key: null };
+    setRoomPhotos(prev => ({ ...prev, [roomName]: [...(prev[roomName] ?? []), entry] }));
+
+    try {
+      const { uploadUrl, s3Key } = await getEstimatorPhotoUploadUrl();
+      await uploadEstimatorPhotoToS3(uploadUrl, file);
+      setRoomPhotos(prev => {
+        const updated = [...(prev[roomName] ?? [])];
+        updated[startIdx] = { ...updated[startIdx], s3Key };
+        return { ...prev, [roomName]: updated };
+      });
+    } catch {
+      setUploadError('Failed to upload captured photo. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleAnalyze() {
     if (!canAnalyze) return;
     setAnalyzeError(null);
@@ -449,7 +507,11 @@ export function EstimatorWidget() {
 
       const result = await analyzeEstimatorPhotos({
         bedrooms, bathrooms, sqftRange,
-        condition:    houseCondition === 'Normal' ? 'average' : houseCondition === 'Moderately Dirty' ? 'messy' : 'very_messy',
+        condition:    houseCondition === 'Pristine' ? 'pristine'
+                    : houseCondition === 'Lightly Used' ? 'average'
+                    : houseCondition === 'Normal' ? 'average'
+                    : houseCondition === 'Moderately Dirty' ? 'messy'
+                    : 'very_messy',
         extras, cleaningType, pets, cookingFreq, cookingStyle,
         rooms: roomsData,
       });
@@ -488,52 +550,72 @@ export function EstimatorWidget() {
       {/* ═══════════════════════════════════ STEP 0: Home Details ══════════════ */}
       {step === 0 && (
         <>
-          <div className="card grid grid-cols-2 gap-6">
-            <Stepper label="Bedrooms"  value={bedrooms}  min={0} max={8} onChange={setBedrooms} />
-            <Stepper label="Bathrooms" value={bathrooms} min={0} max={6} step={0.5} onChange={setBathrooms} />
-          </div>
-
-          <div className="card">
-            <Stepper label="Square Footage" value={sqft} min={0} max={5000} step={100} onChange={setSqft} />
-            <p className="text-xs text-gray-400 mt-2">Adjust in 100 sq ft increments</p>
-          </div>
-
-          <div className="card">
-            <ChipGroup label="Cleaning Type" options={CLEANING_TYPES} value={cleaningType} onChange={setCleaningType} />
-          </div>
-
-          <div className="card">
-            <ChipGroup label="House Condition" options={HOUSE_CONDITIONS} value={houseCondition} onChange={setHouseCondition} />
-          </div>
-
-          <div className="card flex items-center justify-between">
-            <div>
-              <p className="label">Pets</p>
-              <p className="text-xs text-gray-400 mt-0.5">Adds 30 min for pet hair</p>
+          {/* ── Card 1: Your Home ─────────────────────────────────────────────── */}
+          <div className="card space-y-5">
+            <div className="grid grid-cols-2 gap-6">
+              <Stepper label="Bedrooms"  value={bedrooms}  min={0} max={8} onChange={setBedrooms} />
+              <Stepper label="Bathrooms" value={bathrooms} min={0} max={6} step={0.5} onChange={setBathrooms} />
             </div>
-            <button type="button" onClick={() => setPets(p => !p)}
-              className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                pets ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-              }`}>
-              {pets ? 'Yes' : 'No'}
-            </button>
+
+            <div className="border-t border-gray-100 pt-4">
+              <Stepper label="Square Footage" value={sqft} min={0} max={5000} step={100} onChange={setSqft} />
+              <p className="text-xs text-gray-400 mt-1">Adjust in 100 sq ft increments</p>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <label className="label mb-2">Living Spaces</label>
+              <div className="flex gap-2">
+                {[
+                  { id: 'kitchen', label: 'Kitchen',     value: includeKitchen,    set: setIncludeKitchen },
+                  { id: 'living',  label: 'Living Room', value: includeLivingRoom, set: setIncludeLivingRoom },
+                ].map(({ id, label, value, set }) => (
+                  <button key={id} type="button" onClick={() => set(v => !v)}
+                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                      value ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                    }`}>
+                    {value ? '✓ ' : ''}{label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="card space-y-4">
-            <ChipGroup label="Cooking Frequency" options={COOKING_FREQS} value={cookingFreq} onChange={setCookingFreq} />
-            <ChipGroup label="Cooking Style"     options={COOKING_STYLES} value={cookingStyle} onChange={setCookingStyle} />
+          {/* ── Card 2: Cleaning Preferences ──────────────────────────────────── */}
+          <div className="card space-y-5">
+            <ChipGroup label="Cleaning Type" options={CLEANING_TYPES} value={cleaningType} onChange={setCleaningType} />
+
+            <div className="border-t border-gray-100 pt-4">
+              <ChipGroup label="House Condition" options={HOUSE_CONDITIONS} value={houseCondition} onChange={setHouseCondition} />
+            </div>
+
+            <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
+              <div>
+                <p className="label">Pets</p>
+                <p className="text-xs text-gray-400 mt-0.5">Adds 30 min for pet hair</p>
+              </div>
+              <button type="button" onClick={() => setPets(p => !p)}
+                className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                  pets ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                }`}>
+                {pets ? 'Yes' : 'No'}
+              </button>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <ChipGroup label="Cooking Frequency" options={COOKING_FREQS} value={cookingFreq} onChange={setCookingFreq} />
+              <ChipGroup label="Cooking Style"     options={COOKING_STYLES} value={cookingStyle} onChange={setCookingStyle} />
+            </div>
           </div>
 
-          {!isMoveOut && (
+          {/* ── Card 3: Add-ons ───────────────────────────────────────────────── */}
+          {!isMoveOut ? (
             <div className="card">
               <label className="label mb-2">Additional Tasks</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {EXTRAS.map(e => (
                   <button key={e.id} type="button" onClick={() => toggleExtra(e.id)}
                     className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      extras.includes(e.id)
-                        ? 'bg-brand-600 text-white border-brand-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                      extras.includes(e.id) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
                     }`}>
                     {e.label}
                     <span className={`block text-xs mt-0.5 ${extras.includes(e.id) ? 'text-brand-100' : 'text-gray-400'}`}>
@@ -543,9 +625,7 @@ export function EstimatorWidget() {
                 ))}
               </div>
             </div>
-          )}
-
-          {isMoveOut && (
+          ) : (
             <div className="card bg-amber-50 border border-amber-200">
               <p className="text-sm text-amber-800 font-medium">Move-Out/Move-In includes all add-ons</p>
               <p className="text-xs text-amber-600 mt-0.5">Oven, fridge, windows, basement, laundry & garage are all included.</p>
@@ -620,6 +700,19 @@ export function EstimatorWidget() {
                 </div>
               </div>
 
+              {/* How to use camera — instructions card */}
+              <div className="card bg-blue-50 border border-blue-200">
+                <p className="text-sm font-semibold text-blue-800 mb-1">📷 How to use the live camera</p>
+                <ol className="text-xs text-blue-700 space-y-1 list-none">
+                  <li>1. Tap <strong>Camera</strong> on any room below to open your phone's camera.</li>
+                  <li>2. Point at the room — the ring fills as you hold steady and <strong>auto-captures</strong>.</li>
+                  <li>3. Or tap the shutter button anytime to capture manually.</li>
+                  <li>4. Move to a different angle and repeat for a more accurate AI estimate.</li>
+                  <li>5. Tap <strong>Done</strong> when finished with that room, then move to the next.</li>
+                </ol>
+                <p className="text-xs text-blue-500 mt-2">You can also upload photos from your gallery using the Upload button.</p>
+              </div>
+
               {/* Per-room sections */}
               <div className="space-y-3">
                 {rooms.map(room => {
@@ -639,10 +732,16 @@ export function EstimatorWidget() {
                           )}
                         </div>
                         {canAdd && (
-                          <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
-                            className="text-xs px-3 py-1 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors">
-                            + Add Photo
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button type="button" onClick={() => openCamera(room)} disabled={uploading}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+                              📷 Camera
+                            </button>
+                            <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
+                              className="text-xs px-2.5 py-1 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors">
+                              + Upload
+                            </button>
+                          </div>
                         )}
                       </div>
 
@@ -672,10 +771,20 @@ export function EstimatorWidget() {
                           )}
                         </div>
                       ) : (
-                        <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
-                          className="w-full rounded-xl border-2 border-dashed border-gray-200 p-4 text-center hover:border-brand-400 transition-colors disabled:opacity-50">
-                          <p className="text-sm text-gray-400">Click to add photos of this room</p>
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={() => openCamera(room)} disabled={uploading}
+                            className="rounded-xl border-2 border-dashed border-blue-200 p-4 text-center hover:border-blue-400 bg-blue-50/40 transition-colors disabled:opacity-50">
+                            <p className="text-lg mb-1">📷</p>
+                            <p className="text-xs text-blue-600 font-medium">Live camera</p>
+                            <p className="text-xs text-blue-400 mt-0.5">Auto-captures</p>
+                          </button>
+                          <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
+                            className="rounded-xl border-2 border-dashed border-gray-200 p-4 text-center hover:border-brand-400 transition-colors disabled:opacity-50">
+                            <p className="text-lg mb-1">🖼️</p>
+                            <p className="text-xs text-gray-500 font-medium">Upload photo</p>
+                            <p className="text-xs text-gray-400 mt-0.5">From gallery</p>
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
@@ -684,6 +793,16 @@ export function EstimatorWidget() {
 
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png"
                 multiple onChange={handleFileChange} className="hidden" />
+
+              {/* Camera capture modal — renders full-screen when a room's camera is open */}
+              {cameraRoom && (
+                <CameraCapture
+                  roomName={cameraRoom}
+                  maxCaptures={cameraMaxCaptures}
+                  onCapture={file => handleCameraCapture(cameraRoom, file)}
+                  onClose={() => setCameraRoom(null)}
+                />
+              )}
 
               {uploadError  && <p className="text-xs text-red-600">{uploadError}</p>}
               {analyzeError && <p className="text-xs text-red-600">{analyzeError}</p>}
@@ -768,6 +887,33 @@ export function EstimatorWidget() {
               </div>
             </div>
           </div>
+
+          {/* Coverage warnings — shown when AI detects missing angles */}
+          {aiResult.coverageWarnings && aiResult.coverageWarnings.length > 0 && (
+            <div className="card border border-amber-300 bg-amber-50">
+              <div className="flex items-start gap-2 mb-2">
+                <span className="text-lg">⚠️</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Limited photo coverage detected</p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    The AI couldn't see all angles in these rooms. Re-scan for a more accurate estimate.
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 mt-2">
+                {aiResult.coverageWarnings.map((w, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-amber-800">
+                    <span className="font-semibold flex-none">{w.room}:</span>
+                    <span>{w.missing}</span>
+                  </li>
+                ))}
+              </ul>
+              <button type="button" onClick={() => setStep(1)}
+                className="mt-3 text-xs text-amber-700 underline font-medium hover:text-amber-900">
+                ← Go back and add more photos
+              </button>
+            </div>
+          )}
 
           {/* Room breakdown */}
           <div className="card">
@@ -865,6 +1011,10 @@ export function EstimatorWidget() {
           <button type="button" onClick={() => setStep(1)}
             className="w-full text-sm text-center text-gray-500 hover:text-gray-700 py-2">
             ← Back to photos
+          </button>
+          <button type="button" onClick={() => navigate('/estimate/history')}
+            className="w-full text-sm text-center text-brand-600 hover:text-brand-800 py-1">
+            View past estimates →
           </button>
         </>
       )}

@@ -144,6 +144,14 @@ functions:
           method: post
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  estimatorHistory:
+    handler: src/handlers/estimatorHistory.handler
+    events:
+      - http:
+          path: /users/me/estimator/history
+          method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
   schedulerChat:
     handler: src/handlers/schedulerChat.handler
     timeout: 30
