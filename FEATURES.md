@@ -1,6 +1,6 @@
 # MaidLink — Features & Proposals
 
-_Last updated: 2026-03-25_
+_Last updated: 2026-04-01_
 
 ## Status Legend
 - ✅ **Done** — Implemented and deployed (or ready to deploy)
@@ -28,7 +28,7 @@ _Last updated: 2026-03-25_
 - ✅ **Cleaning time estimator** — Formula-based: bedrooms × 0.5 + bathrooms × 0.75 + sqft/500, with type/condition/pets/cooking multipliers and extras; rounding to 0.5h (≤4h) or 1h (>4h)
 - ✅ **3-step AI estimator wizard** — Step 1: home details + live formula estimate; Step 2: per-room photo upload (min 5 / max 10 total, up to 5 per room); Step 3: AI results with room breakdown + checklist
 - ✅ **Per-room AI analysis** — Nova Lite analyses photos labelled by room; returns per-room condition, minutes estimate, and priority tasks; overall 1/2-cleaner hour total
-- ✅ **AI-generated cleaning checklist** — Customised per home from photos; tasks have priority (high/medium/standard) + AI note explaining why flagged; accordion UI; downloadable as PDF (Part 1: AI highlights, Part 2: full standard checklist filtered by cleaning type)
+- ✅ **AI-generated cleaning checklist** — Customised per home from photos; tasks have priority (high/medium/standard) + AI note explaining why flagged; accordion UI; downloadable as PDF (room-by-room: AI highlights + full standard checklist per room, filtered by cleaning type)
 - ✅ **Standard checklist data** — Full residential checklist in `frontend/src/data/cleaningChecklist.ts` by room and cleaning type; used as AI reference baseline
 - ✅ **Estimator → booking hand-off** — S3 keys + AI checklist stored in sessionStorage and attached to booking; checklist available for maid job briefing
 
@@ -44,9 +44,16 @@ _Last updated: 2026-03-25_
 ### Maid Dashboard
 - ✅ **Maid earnings dashboard** — Total earned, this month, pending, completed and upcoming booking lists
 
+### Estimator History
+- ✅ **Customer estimate history** — `/estimate/history`: expandable cards per past estimate; shows home details, condition, hours, AI assessment, photos (lightbox), room breakdown, checklist, PDF download, and "Book a cleaner" link
+- ✅ **Admin estimator usage view** — `/admin/estimator`: all customers' estimates with user name/email/avatar, paginated; same card layout as customer history; linked from Admin Dashboard
+
 ### Admin
 - ✅ **Admin maid approval queue** — Approve/reject maid profiles; verification badge management
 - ✅ **Maid application email notification** — SES email sent to muni@maidlink.ca on every become-a-maid form submission; includes all applicant fields; fire-and-forget (does not block 201 response)
+
+### Infrastructure
+- ✅ **RDS PostgreSQL t3.micro** — Migrated from Aurora Serverless v2 (~$52/mo) to RDS PostgreSQL 15.8 t3.micro (~$13-15/mo); same VPC, same pg driver, zero-downtime data migration via one-shot Lambda
 
 ### Auth & Security
 - ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
@@ -102,7 +109,7 @@ These are known gaps in the current architecture — not blocking for MVP but im
 
 | Concern | Impact | Notes |
 |---------|--------|-------|
-| **Aurora cold starts** | 1–3s first request after idle | No RDS Proxy; direct Lambda→Aurora connection. Warm Lambda helps but RDS can still cold-start. Consider RDS Proxy once traffic picks up. |
+| **RDS cold starts** | ~500ms first request after Lambda cold start | No RDS Proxy; direct Lambda→RDS connection. Consider RDS Proxy once traffic picks up. |
 | **No API rate limiting** | Abuse / runaway costs | API Gateway usage plans or a WAF rule would limit per-IP/user request rates. AI endpoints (Bedrock) are especially exposed — only a DB-level daily limit exists on the estimator. |
 | **AI calls are synchronous** | 10–30s Lambda timeout risk | Bedrock InvokeModel is called inline. Under load or model latency spikes, Lambdas can timeout. Consider SQS + async processing with WebSocket/polling for Bedrock calls. |
 | **No React error boundary** | Uncaught render errors crash whole app | A top-level `<ErrorBoundary>` would catch rendering errors and show a fallback UI instead of a blank screen. |
@@ -121,6 +128,28 @@ These are known gaps in the current architecture — not blocking for MVP but im
 ### Ready to Build
 - **Post-cleaning report** — Maid uploads before/after photos; AI generates a short summary report (what was cleaned, condition change) emailed to the customer. Low effort given existing Bedrock + S3 setup.
 - **Review summarization** — Auto-summarize a maid's reviews into 2–3 bullet points shown on the profile card. No new infra needed.
+
+### Estimator: Photo Capture Enhancements
+Two UX improvements to the live camera step in `CameraCapture.tsx`:
+
+**1. Desktop → Mobile nudge**
+- Detect non-mobile device (`window.innerWidth > 768` or `navigator.userAgent` check)
+- Show a dismissible banner above the upload area: *"For best results, use your phone — photos taken with your camera give the AI much better detail"*
+- Include a QR code (e.g. `qrcode.react` library) pointing to the current page URL so the user can instantly switch devices
+- Banner should only show in Step 2 (photo upload step), not everywhere
+
+**2. Room-specific shot guide (Turo-style)**
+- Replace the generic 4-angle `GUIDED_ANGLES` array in `CameraCapture.tsx` with per-room shot lists
+- Each shot has: `label` (e.g. "Top of stove"), `hint` (1-line instruction), and optionally an `icon` or small illustration (SVG or emoji stand-in) showing the angle/area
+- Example shot lists:
+  - **Kitchen**: Top of stove · Inside oven · Sink & countertops · Fridge front
+  - **Bathroom**: Toilet & floor · Shower/tub · Vanity & mirror
+  - **Bedroom**: Full room from doorway · Closet · Floor & corners
+  - **Living Room**: Full room · Couch area · Windows & floors
+  - **Basement / Garage**: Full-width panoramic · Floor condition · Any clutter/storage
+- The capture UI cycles through the shot list in order (same ring-progress mechanic already in place), showing the shot label + hint + illustration as an overlay before the user frames the shot
+- Fall back to current generic 4-angle scan for any room not in the list
+- `maxCaptures` stays as the hard cap; shot list just sets the guided sequence length (can be shorter)
 
 ### Medium Effort
 - **Personalized maid recommendations** — Rank maids on the listing page based on the customer's past bookings, stated home type, and cleaning preferences. Requires storing customer preferences.

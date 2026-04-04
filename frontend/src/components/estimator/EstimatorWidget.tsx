@@ -11,6 +11,7 @@ import {
 } from '../../api/estimator';
 import { CLEANING_CHECKLIST, type CleaningTypeKey } from '../../data/cleaningChecklist';
 import { CameraCapture } from './CameraCapture';
+import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 
 // ── Types & constants ─────────────────────────────────────────────────────────
@@ -352,6 +353,10 @@ export function EstimatorWidget() {
   const [cameraRoom,        setCameraRoom]        = useState<string | null>(null);
   const [cameraMaxCaptures, setCameraMaxCaptures] = useState(0);
 
+  // Desktop → mobile nudge
+  const isTouchDevice  = navigator.maxTouchPoints > 0 || /Android|iPhone|iPad/i.test(navigator.userAgent);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
   // Step 2 — results
   const [analyzing,    setAnalyzing]   = useState(false);
   const [analyzeError, setAnalyzeError]= useState<string | null>(null);
@@ -659,6 +664,25 @@ export function EstimatorWidget() {
       {/* ═══════════════════════════════════ STEP 1: Room Photos ═══════════════ */}
       {step === 1 && (
         <>
+          {/* Desktop → mobile nudge */}
+          {!isTouchDevice && !nudgeDismissed && (
+            <div className="flex items-start gap-4 p-4 mb-4 rounded-xl bg-amber-50 border border-amber-200">
+              <QRCodeSVG value={window.location.href} size={72} className="shrink-0 rounded" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-amber-800 text-sm">Use your phone for best results</p>
+                <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                  Scan the QR code to open this page on your phone — live camera gives the AI much better detail than uploaded photos.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNudgeDismissed(true)}
+                aria-label="Dismiss"
+                className="text-amber-400 hover:text-amber-700 text-xl leading-none shrink-0 transition-colors"
+              >×</button>
+            </div>
+          )}
+
           {!isAuthenticated ? (
             <div className="card text-center space-y-3">
               <p className="text-sm text-gray-600">Sign in to upload photos and get an AI-powered estimate.</p>
@@ -799,6 +823,7 @@ export function EstimatorWidget() {
                 <CameraCapture
                   roomName={cameraRoom}
                   maxCaptures={cameraMaxCaptures}
+                  isLastRoom={rooms.indexOf(cameraRoom) === rooms.length - 1}
                   onCapture={file => handleCameraCapture(cameraRoom, file)}
                   onClose={() => setCameraRoom(null)}
                 />

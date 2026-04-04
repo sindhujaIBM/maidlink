@@ -11,29 +11,76 @@ const PREVIEW_H        = 90;
 const RING_R    = 36;
 const RING_CIRC = 2 * Math.PI * RING_R;
 
-// Guided angle prompts — walks the user through a 4-angle room scan
-const GUIDED_ANGLES = [
-  { label: 'Main view',   hint: 'Stand in the doorway — show the full room ahead' },
-  { label: 'Far wall',    hint: 'Move across — capture the opposite wall & floor' },
-  { label: 'Left side',   hint: 'Turn left — show the left wall, windows & corners' },
-  { label: 'Right side',  hint: 'Turn right — show the right wall, floor & ceiling' },
-];
+// ─── Room-specific shot guides ────────────────────────────────────────────────
+
+interface ShotItem { icon: string; label: string; hint: string; }
+
+const ROOM_SHOTS: Record<string, ShotItem[]> = {
+  Kitchen: [
+    { icon: '🔥', label: 'Stovetop',        hint: 'Show burners, grates and surrounding surface from above' },
+    { icon: '🫙', label: 'Oven interior',   hint: 'Open the oven door — show racks, walls and floor of oven' },
+    { icon: '🚰', label: 'Sink & counters', hint: 'Show the sink, faucet and full counter surface' },
+    { icon: '🧊', label: 'Fridge front',    hint: 'Capture the fridge exterior and the floor in front of it' },
+  ],
+  Bathroom: [
+    { icon: '🚽', label: 'Toilet',          hint: 'Show the toilet, base, tank and floor around it' },
+    { icon: '🛁', label: 'Shower / Tub',    hint: 'Capture the tub or shower, walls, tiles and fixtures' },
+    { icon: '🪞', label: 'Vanity & mirror', hint: 'Show the sink, counter surface, mirror and cabinet' },
+    { icon: '🪣', label: 'Floor',           hint: 'Capture the floor tiles and all corners of the room' },
+  ],
+  Bedroom: [
+    { icon: '🚪', label: 'Full room',       hint: 'Stand in the doorway — show the whole room ahead' },
+    { icon: '🛏️', label: 'Bed area',        hint: 'Capture the bed, headboard and floor on both sides' },
+    { icon: '👗', label: 'Closet',          hint: 'Open the closet — show the interior, shelves and floor' },
+    { icon: '📐', label: 'Floor & corners', hint: 'Show floor, baseboards and all four corners' },
+  ],
+  'Living Room': [
+    { icon: '🏠', label: 'Full room',       hint: 'Stand at the entrance — show the whole living space' },
+    { icon: '🛋️', label: 'Seating area',    hint: 'Capture the couch, chairs, cushions and coffee table' },
+    { icon: '🪟', label: 'Windows & floor', hint: 'Show windows, curtains/blinds and the floor beneath' },
+    { icon: '📺', label: 'Feature wall',    hint: 'Capture the TV unit, shelving, fireplace or feature wall' },
+  ],
+  Basement: [
+    { icon: '🏗️', label: 'Full space',      hint: 'Stand at the stairs — show the entire basement floor' },
+    { icon: '🪨', label: 'Floor condition', hint: 'Capture the floor surface — show stains, cracks or damp' },
+    { icon: '📦', label: 'Storage areas',   hint: 'Show any shelving, storage items or utility equipment' },
+  ],
+  Garage: [
+    { icon: '🚗', label: 'Full garage',     hint: 'Stand at the entrance — show the complete garage space' },
+    { icon: '🛞', label: 'Floor',           hint: 'Capture the floor — show oil stains, marks or debris' },
+    { icon: '🗄️', label: 'Walls & storage', hint: 'Show shelving, walls, tools and any stored items' },
+  ],
+};
+
+function getShotGuide(roomName: string): ShotItem[] {
+  if (ROOM_SHOTS[roomName]) return ROOM_SHOTS[roomName];
+  const key = Object.keys(ROOM_SHOTS).find(k => roomName.startsWith(k));
+  if (key) return ROOM_SHOTS[key];
+  // Generic fallback
+  return [
+    { icon: '👁️', label: 'Main view',   hint: 'Stand in the doorway — show the full room ahead' },
+    { icon: '🧱', label: 'Far wall',    hint: 'Move across — capture the opposite wall & floor' },
+    { icon: '⬅️', label: 'Left side',   hint: 'Turn left — show the left wall, windows & corners' },
+    { icon: '➡️', label: 'Right side',  hint: 'Turn right — show the right wall, floor & ceiling' },
+  ];
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 interface Props {
   roomName:    string;
   maxCaptures: number;
+  isLastRoom:  boolean;
   onCapture:   (file: File) => void;
   onClose:     () => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Props) {
+export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, onClose }: Props) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);  // holds stream until video element is ready
+  const streamRef = useRef<MediaStream | null>(null);
 
   // rAF-loop refs — avoid stale closures
   const stableRef    = useRef(0);
@@ -44,6 +91,14 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
   const maxRef       = useRef(maxCaptures);
   const onCaptureRef = useRef(onCapture);
 
+  // Shot guide — stable since roomName never changes during component lifetime
+  const shotGuide    = getShotGuide(roomName);
+  const shotGuideRef = useRef(shotGuide);
+
+  // Guide overlay state — starts true so first shot's guide shows immediately
+  const showingGuideRef = useRef(true);
+  const [showingGuide, setShowingGuide] = useState(true);
+
   useEffect(() => { onCaptureRef.current = onCapture;  }, [onCapture]);
   useEffect(() => { maxRef.current       = maxCaptures; }, [maxCaptures]);
 
@@ -51,11 +106,9 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
   const [stability,     setStability]     = useState(0);
   const [flash,         setFlash]         = useState(false);
   const [capturedCount, setCapturedCount] = useState(0);
-  const [angleIdx,      setAngleIdx]      = useState(0);   // which guided angle we're on
+  const [angleIdx,      setAngleIdx]      = useState(0);
 
-  // ── Request camera, store stream in ref ──────────────────────────────────
-  // FIX: video element doesn't exist until permission === 'granted' renders it.
-  // Store the stream in a ref and assign srcObject in a separate effect below.
+  // ── Request camera ────────────────────────────────────────────────────────
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +121,7 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
       .then(stream => {
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
-        setPermission('granted');   // triggers re-render → video element mounts → effect below fires
+        setPermission('granted');
       })
       .catch(() => {
         if (!cancelled) setPermission('denied');
@@ -115,10 +168,19 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
         countRef.current += 1;
         setCapturedCount(countRef.current);
 
-        // Advance to next guided angle (stays at last angle once all covered)
-        const nextAngle = Math.min(angleIdxRef.current + 1, GUIDED_ANGLES.length - 1);
+        // Advance to next guided shot
+        const nextAngle = angleIdxRef.current + 1;
         angleIdxRef.current = nextAngle;
         setAngleIdx(nextAngle);
+
+        // Show guide for next shot if there are more shots and capacity remains
+        if (countRef.current < maxRef.current && nextAngle < shotGuideRef.current.length) {
+          showingGuideRef.current = true;
+          setShowingGuide(true);
+        } else {
+          showingGuideRef.current = false;
+          setShowingGuide(false);
+        }
       }
       // Reset stability for next capture
       stableRef.current = 0;
@@ -143,7 +205,8 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
 
     function tick() {
       const video = videoRef.current;
-      if (!video || video.readyState < 2 || capturingRef.current || countRef.current >= maxRef.current) {
+      // Pause loop while guide overlay is showing
+      if (!video || video.readyState < 2 || capturingRef.current || countRef.current >= maxRef.current || showingGuideRef.current) {
         animId = requestAnimationFrame(tick);
         return;
       }
@@ -185,21 +248,44 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
     return () => cancelAnimationFrame(animId);
   }, [permission, captureFrame]);
 
+  // ── Guide handlers ────────────────────────────────────────────────────────
+
+  function handleGotIt() {
+    stableRef.current  = 0;
+    prevRef.current    = null;
+    setStability(0);
+    showingGuideRef.current = false;
+    setShowingGuide(false);
+  }
+
+  function handleSkip() {
+    const next = angleIdxRef.current + 1;
+    angleIdxRef.current = next;
+    setAngleIdx(next);
+    if (next >= shotGuideRef.current.length) {
+      // All guided shots accounted for — go free-form
+      showingGuideRef.current = false;
+      setShowingGuide(false);
+      stableRef.current = 0;
+      prevRef.current   = null;
+      setStability(0);
+    }
+    // else: re-renders with next shot's guide showing
+  }
+
   // ── Derived UI ────────────────────────────────────────────────────────────
 
-  const isDone        = capturedCount >= maxCaptures;
-  const allAngles     = capturedCount >= GUIDED_ANGLES.length;
-  const currentAngle  = GUIDED_ANGLES[angleIdx];
-  const dashOffset    = RING_CIRC * (1 - stability / 100);
+  const isDone       = capturedCount >= maxCaptures;
+  const allAngles    = capturedCount >= shotGuide.length;
+  const currentShot  = shotGuide[Math.min(angleIdx, shotGuide.length - 1)];
+  const dashOffset   = RING_CIRC * (1 - stability / 100);
 
-  // Status pill inside viewfinder
   const statusText =
     isDone          ? `${capturedCount} photos captured` :
     stability >= 90 ? 'Hold still…' :
     stability > 30  ? 'Almost — keep steady' :
-                      currentAngle.hint;
+                      currentShot.hint;
 
-  // Pill colour
   const pillCls =
     isDone          ? 'bg-gray-700/80 text-gray-300' :
     stability >= 90 ? 'bg-green-600/80 text-white'   :
@@ -284,10 +370,10 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
               </div>
             </div>
 
-            {/* Angle progress dots — top right */}
+            {/* Shot progress dots — top right */}
             {!isDone && (
               <div className="absolute top-3 right-4 flex gap-1 items-center">
-                {GUIDED_ANGLES.map((_, i) => (
+                {shotGuide.map((_, i) => (
                   <div key={i} className={`h-2 w-2 rounded-full transition-colors ${
                     i < capturedCount   ? 'bg-green-400' :
                     i === capturedCount ? 'bg-white'     :
@@ -296,25 +382,71 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
                 ))}
               </div>
             )}
+
+            {/* ── Shot guide overlay ── */}
+            {showingGuide && !isDone && (
+              <div
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 gap-5"
+                style={{ background: 'rgba(0,0,0,0.88)' }}
+              >
+                {/* Shot counter */}
+                <p className="text-gray-400 text-xs uppercase tracking-widest">
+                  Shot {Math.min(angleIdx + 1, shotGuide.length)} of {shotGuide.length}
+                </p>
+
+                {/* Icon */}
+                <span className="text-7xl leading-none">{currentShot.icon}</span>
+
+                {/* Label + hint */}
+                <div className="text-center">
+                  <p className="text-white font-bold text-2xl mb-2">{currentShot.label}</p>
+                  <p className="text-gray-300 text-sm leading-relaxed max-w-xs">{currentShot.hint}</p>
+                </div>
+
+                {/* Privacy notice */}
+                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 max-w-xs text-center">
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    🔒 Ensure <span className="text-white font-medium">no people, faces, or personal documents</span> are visible.
+                    {' '}Photos may be used to improve our AI models.
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <button
+                  type="button"
+                  onClick={handleGotIt}
+                  className="w-full max-w-xs py-4 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-base transition-colors"
+                >
+                  Got it — start capturing →
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  className="text-gray-500 hover:text-gray-300 text-sm transition-colors py-1"
+                >
+                  Skip this shot
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ── Bottom controls ── */}
           <div className="bg-black px-6 pt-4 pb-8 flex flex-col items-center gap-3">
 
-            {/* Angle label + hint */}
-            {!isDone && (
+            {/* Shot label + hint */}
+            {!isDone && !showingGuide && (
               <div className="text-center">
                 <p className="text-white text-sm font-semibold">
-                  Angle {Math.min(capturedCount + 1, GUIDED_ANGLES.length)} of {GUIDED_ANGLES.length}
-                  {' '}· {currentAngle.label}
+                  {currentShot.icon} {currentShot.label}
+                  {' '}· Shot {Math.min(capturedCount + 1, shotGuide.length)} of {shotGuide.length}
                 </p>
-                <p className="text-gray-400 text-xs mt-0.5">{currentAngle.hint}</p>
+                <p className="text-gray-400 text-xs mt-0.5">{currentShot.hint}</p>
               </div>
             )}
 
             {isDone && (
               <p className="text-gray-400 text-xs text-center">
-                All {capturedCount} angles captured for this room
+                All {capturedCount} photos captured for this room
               </p>
             )}
 
@@ -336,7 +468,7 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
               <button
                 type="button"
                 onClick={captureFrame}
-                disabled={isDone}
+                disabled={isDone || showingGuide}
                 aria-label="Capture photo"
                 className="relative z-10 h-16 w-16 rounded-full bg-white shadow-xl flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
               >
@@ -344,16 +476,20 @@ export function CameraCapture({ roomName, maxCaptures, onCapture, onClose }: Pro
               </button>
             </div>
 
-            {capturedCount === 0 && (
+            {capturedCount === 0 && !showingGuide && (
               <p className="text-gray-600 text-xs text-center">
                 Ring fills as you hold steady · tap to capture manually
               </p>
             )}
 
-            {/* Extra angles note once guided set done */}
-            {allAngles && !isDone && (
-              <p className="text-gray-500 text-xs text-center">
-                All 4 angles captured — keep going for more detail or tap Done
+            {/* Extra shots note once all guided shots done */}
+            {allAngles && !isDone && !showingGuide && (
+              <p className="text-gray-400 text-xs text-center leading-relaxed">
+                All guided shots done! You can keep capturing more detail, or tap{' '}
+                <span className="text-white font-medium">Done</span>{' '}
+                {isLastRoom
+                  ? 'to start the AI analysis'
+                  : 'to move to the next room'}
               </p>
             )}
 
