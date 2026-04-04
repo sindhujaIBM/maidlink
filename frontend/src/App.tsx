@@ -19,6 +19,7 @@ import { AdminMaidsPage }      from './pages/admin/AdminMaidsPage';
 import { AdminBookingsPage }   from './pages/admin/AdminBookingsPage';
 import { AdminLoginPage }      from './pages/admin/AdminLoginPage';
 import { AdminEstimatorPage }  from './pages/admin/AdminEstimatorPage';
+import { AdminUsersPage }      from './pages/admin/AdminUsersPage';
 import { DevLoginPage }        from './pages/DevLoginPage';
 import { EstimatorPage }       from './pages/EstimatorPage';
 import { EstimatorHistoryPage } from './pages/EstimatorHistoryPage';
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/admin/maids"         element={<RequireRole roles={['ADMIN']}><AdminMaidsPage /></RequireRole>} />
           <Route path="/admin/bookings"      element={<RequireRole roles={['ADMIN']}><AdminBookingsPage /></RequireRole>} />
           <Route path="/admin/estimator"     element={<RequireRole roles={['ADMIN']}><AdminEstimatorPage /></RequireRole>} />
+          <Route path="/admin/users"         element={<RequireRole roles={['ADMIN']}><AdminUsersPage /></RequireRole>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

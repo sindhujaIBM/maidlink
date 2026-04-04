@@ -724,18 +724,20 @@ export function EstimatorWidget() {
                 </div>
               </div>
 
-              {/* How to use camera — instructions card */}
-              <div className="card bg-blue-50 border border-blue-200">
-                <p className="text-sm font-semibold text-blue-800 mb-1">📷 How to use the live camera</p>
-                <ol className="text-xs text-blue-700 space-y-1 list-none">
-                  <li>1. Tap <strong>Camera</strong> on any room below to open your phone's camera.</li>
-                  <li>2. Point at the room — the ring fills as you hold steady and <strong>auto-captures</strong>.</li>
-                  <li>3. Or tap the shutter button anytime to capture manually.</li>
-                  <li>4. Move to a different angle and repeat for a more accurate AI estimate.</li>
-                  <li>5. Tap <strong>Done</strong> when finished with that room, then move to the next.</li>
-                </ol>
-                <p className="text-xs text-blue-500 mt-2">You can also upload photos from your gallery using the Upload button.</p>
-              </div>
+              {/* How to use camera — instructions card (mobile only) */}
+              {isTouchDevice && (
+                <div className="card bg-blue-50 border border-blue-200">
+                  <p className="text-sm font-semibold text-blue-800 mb-1">📷 How to use the live camera</p>
+                  <ol className="text-xs text-blue-700 space-y-1 list-none">
+                    <li>1. Tap <strong>Camera</strong> on any room below to open your phone's camera.</li>
+                    <li>2. Point at the room — the ring fills as you hold steady and <strong>auto-captures</strong>.</li>
+                    <li>3. Or tap the shutter button anytime to capture manually.</li>
+                    <li>4. Move to a different angle and repeat for a more accurate AI estimate.</li>
+                    <li>5. Tap <strong>Done</strong> when finished with that room, then move to the next.</li>
+                  </ol>
+                  <p className="text-xs text-blue-500 mt-2">You can also upload photos from your gallery using the Upload button.</p>
+                </div>
+              )}
 
               {/* Per-room sections */}
               <div className="space-y-3">
@@ -757,10 +759,12 @@ export function EstimatorWidget() {
                         </div>
                         {canAdd && (
                           <div className="flex items-center gap-1.5">
-                            <button type="button" onClick={() => openCamera(room)} disabled={uploading}
-                              className="text-xs px-2.5 py-1 rounded-lg border border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors">
-                              📷 Camera
-                            </button>
+                            {isTouchDevice && (
+                              <button type="button" onClick={() => openCamera(room)} disabled={uploading}
+                                className="text-xs px-2.5 py-1 rounded-lg border border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+                                📷 Camera
+                              </button>
+                            )}
                             <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
                               className="text-xs px-2.5 py-1 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors">
                               + Upload
@@ -794,7 +798,7 @@ export function EstimatorWidget() {
                             </button>
                           )}
                         </div>
-                      ) : (
+                      ) : isTouchDevice ? (
                         <div className="grid grid-cols-2 gap-2">
                           <button type="button" onClick={() => openCamera(room)} disabled={uploading}
                             className="rounded-xl border-2 border-dashed border-blue-200 p-4 text-center hover:border-blue-400 bg-blue-50/40 transition-colors disabled:opacity-50">
@@ -809,6 +813,13 @@ export function EstimatorWidget() {
                             <p className="text-xs text-gray-400 mt-0.5">From gallery</p>
                           </button>
                         </div>
+                      ) : (
+                        <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
+                          className="w-full rounded-xl border-2 border-dashed border-gray-200 p-6 text-center hover:border-brand-400 transition-colors disabled:opacity-50">
+                          <p className="text-2xl mb-1">🖼️</p>
+                          <p className="text-sm text-gray-600 font-medium">Upload photos</p>
+                          <p className="text-xs text-gray-400 mt-0.5">JPEG or PNG · up to 10 MB each</p>
+                        </button>
                       )}
                     </div>
                   );
