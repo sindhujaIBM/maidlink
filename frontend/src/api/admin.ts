@@ -148,11 +148,11 @@ export interface AdminEstimatorAnalysis {
     conditionAssessment: string;
     oneCleanerHours:     number;
     twoCleanerHours:     number;
-    cleaningTypeNote?:   string;
-    roomBreakdown:       Array<{ room: string; condition: string; estimatedMinutes: number; notes: string }>;
-    generatedChecklist:  Array<{ room: string; tasks: Array<{ task: string; priority: string; aiNote?: string }> }>;
-    coverageWarnings?:   Array<{ room: string; missing: string }>;
-    confidenceNote?:     string;
+    upgradeRecommendation?: { suggestedType: string; reason: string; benefits: string[] };
+    roomBreakdown:          Array<{ room: string; condition: string; estimatedMinutes: number; notes: string }>;
+    generatedChecklist:     Array<{ room: string; tasks: Array<{ task: string; priority: string; aiNote?: string }> }>;
+    coverageWarnings?:      Array<{ room: string; missing: string }>;
+    confidenceNote?:        string;
   };
   photoUrls: string[];
   user: {

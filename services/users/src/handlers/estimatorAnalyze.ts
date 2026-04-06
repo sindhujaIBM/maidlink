@@ -16,8 +16,11 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { withAuth, ok, ValidationError, ForbiddenError, getPool } from '@maidlink/shared';
 import { getObjectAsBase64 } from '../lib/s3';
+
+const ses = new SESClient({ region: 'us-east-1' });
 
 const DAILY_LIMIT     = 5;
 const MIN_PHOTOS      = 5;
@@ -43,69 +46,47 @@ interface AnalyzeBody {
   rooms:         RoomInput[];
 }
 
-// ── Standard checklist reference (inlined so backend has no frontend dep) ─────
+// ── Prompts ───────────────────────────────────────────────────────────────────
 
-const CHECKLIST_REFERENCE = `
-Standard cleaning tasks by room (customize based on what you see in the photos):
+const SYSTEM_PROMPT = `You are an expert residential cleaning estimator for a professional cleaning company in Calgary, Canada.
 
+CONDITION CLASSIFICATION:
+- pristine: spotless, no visible dirt or clutter
+- average: normal lived-in state, light dust and minor clutter
+- messy: visible grime, clutter, or buildup requiring extra effort
+- very_messy: heavy soiling, significant buildup, or major clutter
+
+TIME MULTIPLIERS:
+- Deep Cleaning: ×1.5 | Move-Out/Move-In: ×2
+- Condition: messy ×1.25, very_messy ×1.5
+- Pets: +30 min | Cooking frequently: +60 min | Heavy cooking style: +60 min
+- Add-ons: oven +60min, fridge +30min, windows +60min, basement +60min, laundry +30min, garage +45min
+Round final total to nearest 0.5h.
+
+CHECKLIST SCOPE BY CLEANING TYPE:
+- Standard: maintenance tasks only (surfaces, floors, fixtures)
+- Deep: all Standard tasks + buildup removal, scrubbing, baseboards, ceiling fans
+- Move-Out/Move-In: all Deep tasks + inside cabinets, inside appliances, full reset
+
+STANDARD TASKS BY ROOM (select only what is relevant to what you see):
 Kitchen: clean countertops, clean stovetop and burners, degrease range hood/filter [Deep/MoveOut], clean oven exterior, clean oven interior [Deep/MoveOut], clean microwave inside and out, wipe fridge exterior, clean fridge interior [Deep/MoveOut], wipe cabinet fronts, clean sink and faucet, wipe backsplash, wipe small appliances, sweep and mop floor
-
 Bathroom: scrub toilet, scrub shower/tub, remove soap scum [Deep/MoveOut], clean glass shower door, scrub tile grout [Deep/MoveOut], clean sink and faucet, wipe vanity, clean mirrors, wipe cabinet fronts, clean exhaust fan cover [Deep/MoveOut], sweep and mop floor
-
 Bedroom: dust all surfaces, wipe furniture exteriors, vacuum floor, vacuum under bed [Deep/MoveOut], wipe windowsills, wipe light switches and door handles, dust ceiling fan [Deep/MoveOut], clean mirrors
-
 Living Room: dust all surfaces, vacuum upholstered furniture, dust blinds [Deep/MoveOut], vacuum floor, vacuum under furniture [Deep/MoveOut], dust ceiling fan [Deep/MoveOut], wipe light switches, clean TV screen, clean mirrors
-
 Basement: sweep and vacuum floors, mop floors, dust surfaces and shelves, remove cobwebs, clean utility sink [Deep/MoveOut]
-
 Garage: sweep floor, remove cobwebs, wipe counters and workbench
+Throughout: remove cobwebs, dust baseboards [Deep/MoveOut], wipe light switches and outlets, wipe door handles, clean interior windows [Deep/MoveOut], empty all trash bins
 
-Throughout all rooms: remove cobwebs, dust baseboards [Deep/MoveOut], wipe light switches and outlets, wipe door handles, clean interior windows [Deep/MoveOut], empty all trash bins
-`.trim();
+PHOTO COVERAGE: if fewer than 3 distinct angles are visible for a room, add a coverageWarnings entry naming the missing areas specifically (e.g. "opposite wall", "floor and lower cabinets").
 
-// ── Prompt ────────────────────────────────────────────────────────────────────
+UPGRADE RECOMMENDATION RULES:
+- Only recommend an upgrade if there is clear visual evidence (e.g. heavy grease, soap scum buildup, significant grime)
+- Recommend the minimum necessary upgrade: Standard → Deep, or Deep → Move-Out/Move-In
+- Never recommend a downgrade
+- benefits[] must list specific tasks the upgraded service adds that are relevant to what you observed (3-5 items)
+- Omit upgradeRecommendation entirely if the requested cleaning type is appropriate
 
-function buildPrompt(body: AnalyzeBody): string {
-  const extrasText = body.extras.length > 0 ? body.extras.join(', ') : 'none';
-  const petsText   = body.pets ? 'Yes — account for pet hair and dander' : 'No';
-  const roomList   = body.rooms
-    .map(r => `${r.room} (${r.photoS3Keys.length} photo${r.photoS3Keys.length > 1 ? 's' : ''})`)
-    .join(', ');
-
-  return `You are an expert residential cleaning estimator for a professional cleaning company in Calgary, Canada.
-
-Customer's home details:
-- Bedrooms: ${body.bedrooms}
-- Bathrooms: ${body.bathrooms}
-- Size: ${body.sqftRange} sq ft
-- Cleaning type requested: ${body.cleaningType ?? 'Standard Cleaning'}
-- Self-reported condition: ${body.condition}
-- Pets: ${petsText}
-- Cooking frequency: ${body.cookingFreq ?? 'Occasionally'}, style: ${body.cookingStyle ?? 'Moderate'}
-- Requested add-ons: ${extrasText}
-
-Photos are provided above, labelled by room: ${roomList}
-
-${CHECKLIST_REFERENCE}
-
-Instructions:
-1. Analyse each room's photos for: clutter level, dust, grease, stains, soap scum, pet hair, floor condition, and any specific areas needing extra attention.
-2. For each room: assign a condition (pristine/average/messy/very_messy), estimate cleaning time in minutes, and list the 2-3 most important tasks.
-3. Build a customised cleaning checklist per room. Include only tasks relevant to what you see. Add a brief Note on HIGH priority tasks explaining what you observed (e.g. "Heavy grease residue on stovetop visible").
-4. Calculate total time for 1 and 2 cleaners. Apply these multipliers to the base time:
-   - Deep Cleaning: ×1.5 | Move-Out/Move-In: ×2
-   - Condition: messy ×1.25, very_messy ×1.5
-   - Pets: +30 min | Cooking frequently: +60 min | Heavy cooking style: +60 min
-   - Add-ons: oven +60min, fridge +30min, windows +60min, basement +60min, laundry +30min, garage +45min
-   Round to nearest 0.5h.
-5. Flag if the requested cleaning type should be upgraded (e.g. Standard → Deep) based on what you see.
-6. Assess photo coverage for each room:
-   - Count how many distinct wall perspectives / viewing angles are visible across all photos for that room.
-   - If fewer than 3 distinct angles are visible (e.g. only one corner was photographed, or all photos show the same wall), add an entry to coverageWarnings for that room.
-   - Be specific: name which areas are missing (e.g. "opposite wall", "floor and lower cabinets", "windows side").
-   - If coverage is sufficient for all rooms, return an empty coverageWarnings array.
-
-Respond ONLY with valid JSON, no markdown fences:
+OUTPUT: respond ONLY with valid JSON, no markdown fences:
 {
   "overallCondition": "pristine|average|messy|very_messy",
   "matchesSelfReport": true,
@@ -121,7 +102,11 @@ Respond ONLY with valid JSON, no markdown fences:
   ],
   "oneCleanerHours": 4.5,
   "twoCleanerHours": 2.5,
-  "cleaningTypeNote": "Optional: recommendation to upgrade cleaning type, or omit if not needed",
+  "upgradeRecommendation": {
+    "suggestedType": "Deep Cleaning",
+    "reason": "Heavy grease buildup visible on stovetop and oven exterior indicates significant interior soiling that Standard Cleaning does not cover.",
+    "benefits": ["Inside oven cleaning", "Scrub backsplash and grout", "Detail clean sink and drain", "Remove grease from range hood"]
+  },
   "generatedChecklist": [
     {
       "room": "Kitchen",
@@ -137,12 +122,39 @@ Respond ONLY with valid JSON, no markdown fences:
   ],
   "confidenceNote": "Optional: note about overall photo quality"
 }`;
+
+function buildUserPrompt(body: AnalyzeBody): string {
+  const extrasText = body.extras.length > 0 ? body.extras.join(', ') : 'none';
+  const petsText   = body.pets ? 'Yes — account for pet hair and dander' : 'No';
+  const roomList   = body.rooms
+    .map(r => `${r.room} (${r.photoS3Keys.length} photo${r.photoS3Keys.length > 1 ? 's' : ''})`)
+    .join(', ');
+
+  return `Customer's home details:
+- Bedrooms: ${body.bedrooms}
+- Bathrooms: ${body.bathrooms}
+- Size: ${body.sqftRange} sq ft
+- Cleaning type requested: ${body.cleaningType ?? 'Standard Cleaning'}
+- Self-reported condition: ${body.condition}
+- Pets: ${petsText}
+- Cooking frequency: ${body.cookingFreq ?? 'Occasionally'}, style: ${body.cookingStyle ?? 'Moderate'}
+- Requested add-ons: ${extrasText}
+
+Photos are provided above, labelled by room: ${roomList}
+
+Instructions:
+1. Analyse each room's photos for: clutter level, dust, grease, stains, soap scum, pet hair, floor condition, and any specific areas needing extra attention.
+2. For each room: assign a condition, estimate cleaning time in minutes, and list the 2-3 most important tasks.
+3. Build a customised cleaning checklist per room. Include only tasks relevant to what you see. Add a brief aiNote on HIGH priority tasks explaining what you observed.
+4. Apply all multipliers and additions to calculate oneCleanerHours and twoCleanerHours.
+5. If visible evidence warrants an upgrade, populate upgradeRecommendation with the suggested type, a specific reason tied to what you observed, and 3-5 concrete benefits the upgraded service adds.
+6. Assess photo coverage and populate coverageWarnings for any room with fewer than 3 distinct angles.`;
 }
 
 // ── Nova Lite invocation with room-labelled images ────────────────────────────
 
 async function invokeNovaLite(
-  prompt: string,
+  userPrompt: string,
   roomImages: Array<{ room: string; images: Array<{ base64: string; mediaType: string }> }>,
 ): Promise<string> {
   const content: unknown[] = [];
@@ -160,9 +172,10 @@ async function invokeNovaLite(
     }
   }
 
-  content.push({ text: prompt });
+  content.push({ text: userPrompt });
 
   const payload = {
+    system: [{ text: SYSTEM_PROMPT }],
     messages: [{ role: 'user', content }],
     inferenceConfig: { max_new_tokens: 2000, temperature: 0.2 },
   };
@@ -176,6 +189,68 @@ async function invokeNovaLite(
 
   const decoded = JSON.parse(Buffer.from(res.body).toString());
   return decoded.output?.message?.content?.[0]?.text ?? '';
+}
+
+// ── Notification email ────────────────────────────────────────────────────────
+
+function buildNotificationEmail(
+  userName: string,
+  userEmail: string,
+  body: AnalyzeBody,
+  result: Record<string, unknown>,
+): string {
+  const hd = body;
+  const r  = result as {
+    overallCondition: string;
+    oneCleanerHours:  number;
+    twoCleanerHours:  number;
+    conditionAssessment: string;
+    roomBreakdown: Array<{ room: string; condition: string; estimatedMinutes: number }>;
+    upgradeRecommendation?: { suggestedType: string; reason: string; benefits: string[] };
+  };
+
+  const extras    = hd.extras.length > 0 ? hd.extras.join(', ') : 'None';
+  const totalMin  = r.roomBreakdown.reduce((s, rb) => s + rb.estimatedMinutes, 0);
+  const totalHrs  = (totalMin / 60).toFixed(1);
+
+  const roomLines = r.roomBreakdown
+    .map(rb => `  • ${rb.room}: ${rb.estimatedMinutes} min (${rb.condition.replace('_', ' ')})`)
+    .join('\n');
+
+  const upgradeLine = r.upgradeRecommendation
+    ? `\nUPGRADE RECOMMENDATION\nSuggested: ${r.upgradeRecommendation.suggestedType}\nReason: ${r.upgradeRecommendation.reason}\nBenefits: ${r.upgradeRecommendation.benefits.join(', ')}\n`
+    : '';
+
+  return `New estimator analysis completed.
+
+USER
+  Name:   ${userName}
+  Email:  ${userEmail}
+
+HOME DETAILS
+  Bedrooms:    ${hd.bedrooms}
+  Bathrooms:   ${hd.bathrooms}
+  Size:        ${hd.sqftRange} sqft
+  Type:        ${hd.cleaningType ?? 'Standard Cleaning'}
+  Condition:   ${hd.condition}
+  Pets:        ${hd.pets ? 'Yes' : 'No'}
+  Cooking:     ${hd.cookingFreq ?? 'Occasionally'}, ${hd.cookingStyle ?? 'Moderate'}
+  Extras:      ${extras}
+
+AI RESULT
+  Overall condition: ${r.overallCondition.replace('_', ' ')}
+  Assessment: ${r.conditionAssessment}
+
+ROOM BREAKDOWN (base time)
+${roomLines}
+  Total base: ${totalHrs} hrs
+
+ESTIMATE
+  1 cleaner: ${r.oneCleanerHours} hrs
+  2 cleaners: ${r.twoCleanerHours} hrs
+${upgradeLine}
+View full details in the Admin Estimator page: https://maidlink.ca/admin/estimator
+`;
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -228,7 +303,7 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
       }))
   );
 
-  const prompt  = buildPrompt(body);
+  const prompt  = buildUserPrompt(body);
   const rawText = await invokeNovaLite(prompt, roomImages);
 
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -254,6 +329,20 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
      WHERE id = $4`,
     [homeDetails, allKeys, result, analysisId]
   );
+
+  // ── Notify muni — fire and forget, never block the response ──────────────
+  const { rows: [user] } = await pool.query<{ full_name: string }>(
+    `SELECT full_name FROM users WHERE id = $1`,
+    [auth.userId]
+  );
+  ses.send(new SendEmailCommand({
+    Source:      'noreply@maidlink.ca',
+    Destination: { ToAddresses: ['muni@maidlink.ca'] },
+    Message: {
+      Subject: { Data: `New Estimate — ${user?.full_name ?? auth.email} (${body.bedrooms}bd/${body.bathrooms}ba, ${body.cleaningType ?? 'Standard'})` },
+      Body:    { Text: { Data: buildNotificationEmail(user?.full_name ?? auth.email, auth.email, body, result) } },
+    },
+  })).catch(err => console.error('Estimator notify email failed:', err));
 
   return ok({ analysis: result });
 });

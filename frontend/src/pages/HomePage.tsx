@@ -12,34 +12,43 @@ export function HomePage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
-      <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4">
-        <img src="/logo-full.png" alt="MaidLink" className="h-24 w-auto mb-6" />
-        <p className="text-xl text-brand-600 mb-2 max-w-lg">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 pt-10 pb-8">
+        <img src="/logo-full.png" alt="MaidLink" className="h-20 w-auto mb-4" />
+        <p className="text-xl text-brand-600 mb-1 max-w-lg">
           Book trusted home cleaners in Calgary — fast, reliable, and always on time.
         </p>
-        <p className="text-sm text-brand-400 mb-10">
+        <p className="text-sm text-brand-400 mb-8">
           Minimum 3-hour bookings · Calgary-only service area
         </p>
 
+        {/* Estimator — primary CTA */}
+        <Link
+          to="/estimate"
+          className="w-full max-w-sm btn-primary text-base px-6 py-4 rounded-2xl shadow-md mb-3"
+        >
+          ✨ Get a Free Cleaning Estimate
+        </Link>
+        <p className="text-xs text-gray-400 mb-8">No sign-up needed · takes 2 minutes</p>
+
         {isAuthenticated ? (
-          <div className="flex gap-4 flex-wrap justify-center">
-            <Link to="/maids" className="btn-primary text-base px-6 py-3">
+          <div className="flex gap-3 flex-wrap justify-center">
+            <Link to="/dashboard" className="btn-secondary text-sm px-5 py-2.5">
+              My Dashboard
+            </Link>
+            <Link to="/maids" className="btn-secondary text-sm px-5 py-2.5">
               Browse Maids
             </Link>
-            <Link to="/become-a-maid" className="btn-secondary text-base px-6 py-3">
-              Become a Cleaner
-            </Link>
             {hasRole('MAID') && (
-              <Link to="/maid/setup" className="btn-secondary text-base px-6 py-3">
+              <Link to="/maid/setup" className="btn-secondary text-sm px-5 py-2.5">
                 Maid Dashboard
               </Link>
             )}
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
             <button
               onClick={handleGoogleSignIn}
-              className="flex items-center gap-3 px-6 py-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm text-gray-700 font-medium text-base transition-colors"
+              className="flex items-center gap-3 px-5 py-2.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm text-gray-700 font-medium text-sm transition-colors"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -49,14 +58,16 @@ export function HomePage() {
               </svg>
               Sign in with Google
             </button>
-            <Link to="/become-a-maid" className="btn-secondary text-base px-6 py-3">
+            <Link to="/become-a-maid" className="btn-secondary text-sm px-5 py-2.5">
               Become a Cleaner
             </Link>
           </div>
         )}
+      </div>
 
-        {/* Feature highlights */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl w-full text-left">
+      {/* Feature highlights */}
+      <div className="border-t border-gray-100 py-10 px-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {[
             { icon: '🔒', title: 'No double-bookings — ever', desc: 'Database-level constraints guarantee your booking is exclusive.' },
             { icon: '📍', title: 'Calgary-only', desc: 'All maids are verified to service Calgary postal codes.' },
@@ -69,14 +80,6 @@ export function HomePage() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Estimator CTA */}
-      <div className="border-t border-gray-100 py-12 px-4 text-center">
-        <p className="text-gray-500 text-sm mb-2">Not ready to hire just yet?</p>
-        <Link to="/estimate" className="text-brand-700 font-semibold hover:text-brand-500 transition-colors">
-          Use our free Cleaning Time Estimator →
-        </Link>
       </div>
     </div>
   );

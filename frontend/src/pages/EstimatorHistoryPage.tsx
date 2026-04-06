@@ -73,9 +73,9 @@ function EstimateCard({ item }: { item: EstimatorHistoryItem }) {
           {/* AI condition summary */}
           <p className="text-sm text-gray-700 italic">{r.conditionAssessment}</p>
 
-          {r.cleaningTypeNote && (
+          {r.upgradeRecommendation && (
             <div className="text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
-              {r.cleaningTypeNote}
+              Upgrade recommended: {r.upgradeRecommendation.suggestedType} — {r.upgradeRecommendation.reason}
             </div>
           )}
 

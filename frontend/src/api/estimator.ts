@@ -5,12 +5,28 @@ export async function getEstimatorPhotoUploadUrl() {
   return res.data.data as { uploadUrl: string; s3Key: string };
 }
 
-/** Uploads an image directly to S3 via pre-signed PUT URL. */
+/** Resizes an image to at most maxPx on its longest side, returning a JPEG Blob. */
+async function compressImage(file: File, maxPx = 1024): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  const scale  = Math.min(1, maxPx / Math.max(width, height));
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.round(width  * scale);
+  canvas.height = Math.round(height * scale);
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error('Image compression failed')), 'image/jpeg', 0.85)
+  );
+}
+
+/** Compresses then uploads an image directly to S3 via pre-signed PUT URL. */
 export async function uploadEstimatorPhotoToS3(uploadUrl: string, file: File) {
-  const res = await fetch(uploadUrl, {
+  const blob = await compressImage(file);
+  const res  = await fetch(uploadUrl, {
     method:  'PUT',
-    headers: { 'Content-Type': file.type || 'image/jpeg' },
-    body:    file,
+    headers: { 'Content-Type': 'image/jpeg' },
+    body:    blob,
   });
   if (!res.ok) throw new Error(`Photo upload failed (${res.status})`);
 }
@@ -41,17 +57,23 @@ export interface CoverageWarning {
   missing: string;
 }
 
+export interface UpgradeRecommendation {
+  suggestedType: string;
+  reason:        string;
+  benefits:      string[];
+}
+
 export interface EstimatorAnalysisResult {
-  overallCondition:    'pristine' | 'average' | 'messy' | 'very_messy';
-  matchesSelfReport:   boolean;
-  conditionAssessment: string;
-  roomBreakdown:       RoomBreakdown[];
-  oneCleanerHours:     number;
-  twoCleanerHours:     number;
-  cleaningTypeNote?:   string;
-  generatedChecklist:  RoomChecklist[];
-  coverageWarnings?:   CoverageWarning[];
-  confidenceNote?:     string;
+  overallCondition:      'pristine' | 'average' | 'messy' | 'very_messy';
+  matchesSelfReport:     boolean;
+  conditionAssessment:   string;
+  roomBreakdown:         RoomBreakdown[];
+  oneCleanerHours:       number;
+  twoCleanerHours:       number;
+  upgradeRecommendation?: UpgradeRecommendation;
+  generatedChecklist:    RoomChecklist[];
+  coverageWarnings?:     CoverageWarning[];
+  confidenceNote?:       string;
 }
 
 // ── History ───────────────────────────────────────────────────────────────────

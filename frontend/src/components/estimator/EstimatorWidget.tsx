@@ -363,6 +363,38 @@ export function EstimatorWidget() {
   const [aiResult,     setAiResult]    = useState<EstimatorAnalysisResult | null>(null);
   const [openRooms,    setOpenRooms]   = useState<Set<string>>(new Set());
 
+  // ── Persist form across OAuth redirect ───────────────────────────────────
+
+  const FORM_STORAGE_KEY = 'estimator_form_state';
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(FORM_STORAGE_KEY);
+    if (!saved) return;
+    sessionStorage.removeItem(FORM_STORAGE_KEY);
+    try {
+      const s = JSON.parse(saved);
+      if (s.bedrooms      !== undefined) setBedrooms(s.bedrooms);
+      if (s.bathrooms     !== undefined) setBathrooms(s.bathrooms);
+      if (s.sqft          !== undefined) setSqft(s.sqft);
+      if (s.cleaningType  !== undefined) setCleaningType(s.cleaningType);
+      if (s.houseCondition!== undefined) setHouseCondition(s.houseCondition);
+      if (s.pets          !== undefined) setPets(s.pets);
+      if (s.cookingFreq   !== undefined) setCookingFreq(s.cookingFreq);
+      if (s.cookingStyle  !== undefined) setCookingStyle(s.cookingStyle);
+      if (s.extras        !== undefined) setExtras(s.extras);
+      if (s.includeKitchen    !== undefined) setIncludeKitchen(s.includeKitchen);
+      if (s.includeLivingRoom !== undefined) setIncludeLivingRoom(s.includeLivingRoom);
+    } catch { /* ignore corrupt storage */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function saveFormState() {
+    sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
+      bedrooms, bathrooms, sqft, cleaningType, houseCondition,
+      pets, cookingFreq, cookingStyle, extras,
+      includeKitchen, includeLivingRoom,
+    }));
+  }
+
   // Auto-select extras for move-out
   useEffect(() => {
     if (cleaningType === 'Move-Out/Move-In Cleaning') {
@@ -640,15 +672,17 @@ export function EstimatorWidget() {
           {/* Formula estimate */}
           <div className="card bg-brand-700 text-white">
             <h2 className="text-sm font-medium text-brand-200 mb-3">Formula Estimate</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${one <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div className="bg-brand-600 rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold">{one} hrs</div>
                 <div className="text-brand-200 text-sm mt-1">1 Cleaner</div>
               </div>
-              <div className="bg-brand-600 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold">{two} hrs</div>
-                <div className="text-brand-200 text-sm mt-1">2 Cleaners</div>
-              </div>
+              {one > 5 && (
+                <div className="bg-brand-600 rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold">{two} hrs</div>
+                  <div className="text-brand-200 text-sm mt-1">2 Cleaners</div>
+                </div>
+              )}
             </div>
             <p className="text-xs text-brand-300 mt-3 text-center">
               Upload room photos in the next step for a smarter AI estimate.
@@ -686,7 +720,7 @@ export function EstimatorWidget() {
           {!isAuthenticated ? (
             <div className="card text-center space-y-3">
               <p className="text-sm text-gray-600">Sign in to upload photos and get an AI-powered estimate.</p>
-              <button onClick={() => { sessionStorage.setItem('authReturnTo', window.location.pathname); window.location.href = buildGoogleAuthUrl(); }}
+              <button onClick={() => { saveFormState(); sessionStorage.setItem('authReturnTo', window.location.pathname); window.location.href = buildGoogleAuthUrl(); }}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 shadow-sm text-gray-700 font-medium text-sm transition-colors">
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -833,6 +867,7 @@ export function EstimatorWidget() {
               {cameraRoom && (
                 <CameraCapture
                   roomName={cameraRoom}
+                  cleaningType={cleaningType}
                   maxCaptures={cameraMaxCaptures}
                   isLastRoom={rooms.indexOf(cameraRoom) === rooms.length - 1}
                   onCapture={file => handleCameraCapture(cameraRoom, file)}
@@ -886,15 +921,17 @@ export function EstimatorWidget() {
                 {aiResult.overallCondition.replace('_', ' ')}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className={`grid gap-3 mb-4 ${aiResult.oneCleanerHours <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
                 <div className="text-2xl font-bold">{aiResult.oneCleanerHours} hrs</div>
                 <div className="text-brand-200 text-xs mt-0.5">1 Cleaner</div>
               </div>
-              <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
-                <div className="text-2xl font-bold">{aiResult.twoCleanerHours} hrs</div>
-                <div className="text-brand-200 text-xs mt-0.5">2 Cleaners</div>
-              </div>
+              {aiResult.oneCleanerHours > 5 && (
+                <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
+                  <div className="text-2xl font-bold">{aiResult.twoCleanerHours} hrs</div>
+                  <div className="text-brand-200 text-xs mt-0.5">2 Cleaners</div>
+                </div>
+              )}
             </div>
             <p className="text-sm text-gray-700">{aiResult.conditionAssessment}</p>
             {!aiResult.matchesSelfReport && (
@@ -902,25 +939,58 @@ export function EstimatorWidget() {
                 Self-reported condition ({houseCondition}) was adjusted based on what the AI observed in the photos.
               </p>
             )}
-            {aiResult.cleaningTypeNote && (
-              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
-                {aiResult.cleaningTypeNote}
-              </p>
-            )}
           </div>
+
+          {/* Upgrade recommendation card */}
+          {aiResult.upgradeRecommendation && (
+            <div className="card border-2 border-amber-400 bg-amber-50 space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="font-semibold text-amber-900 text-sm">
+                    AI recommends upgrading to {aiResult.upgradeRecommendation.suggestedType}
+                  </p>
+                  <p className="text-amber-800 text-xs mt-1 leading-relaxed">
+                    {aiResult.upgradeRecommendation.reason}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-1.5">
+                  What you'd get:
+                </p>
+                <ul className="space-y-1">
+                  {aiResult.upgradeRecommendation.benefits.map(b => (
+                    <li key={b} className="flex items-center gap-2 text-xs text-amber-900">
+                      <span className="text-amber-500">✓</span> {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCleaningType(aiResult.upgradeRecommendation!.suggestedType as CleaningType)}
+                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors"
+              >
+                Switch to {aiResult.upgradeRecommendation.suggestedType}
+              </button>
+            </div>
+          )}
 
           {/* Formula comparison */}
           <div className="card bg-gray-50 border border-gray-200">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Formula estimate (for comparison)</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid gap-3 ${one <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div className="text-center">
                 <div className="text-xl font-bold text-gray-700">{one} hrs</div>
                 <div className="text-xs text-gray-400">1 Cleaner</div>
               </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-gray-700">{two} hrs</div>
-                <div className="text-xs text-gray-400">2 Cleaners</div>
-              </div>
+              {one > 5 && (
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-700">{two} hrs</div>
+                  <div className="text-xs text-gray-400">2 Cleaners</div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -978,6 +1048,20 @@ export function EstimatorWidget() {
                   </div>
                 </div>
               ))}
+
+              {/* Total row */}
+              {(() => {
+                const totalMin = aiResult.roomBreakdown.reduce((sum, r) => sum + r.estimatedMinutes, 0);
+                const hrs = Math.floor(totalMin / 60);
+                const min = totalMin % 60;
+                const label = hrs > 0 && min > 0 ? `${hrs} hr ${min} min` : hrs > 0 ? `${hrs} hr` : `${min} min`;
+                return (
+                  <div className="flex items-center justify-between px-3 pt-2 mt-1 border-t border-gray-200">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total (base, before adjustments)</span>
+                    <span className="text-sm font-bold text-gray-800">{label}</span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

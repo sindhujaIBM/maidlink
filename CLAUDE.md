@@ -86,3 +86,17 @@ aws cloudfront create-invalidation --distribution-id E2C1HS3K184GKW --paths "/*"
 - Users API: https://rh9nojf0g0.execute-api.ca-west-1.amazonaws.com/prod
 - Booking API: https://mu054qkxab.execute-api.ca-west-1.amazonaws.com/prod
 - Admin API: https://46ke6cq4t4.execute-api.ca-west-1.amazonaws.com/prod
+
+## Debugging
+1. Identify root cause (not just symptoms)
+2. Explain why it happened
+3. Provide a fix
+4. Suggest prevention
+
+## Feature Design
+- Ask clarifying questions if requirements are vague
+- Offer 2–3 implementation options for non-trivial features with tradeoffs
+
+## AI/Estimator Domain Notes
+- Image quality may vary (blurry, dark, partial rooms) — handle gracefully
+- Degrade gracefully when AI confidence is low; never block the user flow

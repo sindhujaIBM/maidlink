@@ -16,17 +16,38 @@ const RING_CIRC = 2 * Math.PI * RING_R;
 interface ShotItem { icon: string; label: string; hint: string; }
 
 const ROOM_SHOTS: Record<string, ShotItem[]> = {
-  Kitchen: [
+  'Kitchen:standard': [
+    { icon: '🏠', label: 'Overview',        hint: 'Stand at the entrance — show the whole kitchen' },
     { icon: '🔥', label: 'Stovetop',        hint: 'Show burners, grates and surrounding surface from above' },
-    { icon: '🫙', label: 'Oven interior',   hint: 'Open the oven door — show racks, walls and floor of oven' },
     { icon: '🚰', label: 'Sink & counters', hint: 'Show the sink, faucet and full counter surface' },
     { icon: '🧊', label: 'Fridge front',    hint: 'Capture the fridge exterior and the floor in front of it' },
   ],
-  Bathroom: [
+  'Kitchen:deep': [
+    { icon: '🏠', label: 'Overview',        hint: 'Stand at the entrance — show the whole kitchen' },
+    { icon: '🔥', label: 'Stovetop',        hint: 'Show burners, grates and surrounding surface from above' },
+    { icon: '🫙', label: 'Oven interior',   hint: 'Open the oven door — show racks, walls and floor of oven' },
+    { icon: '🚰', label: 'Sink & counters', hint: 'Show the sink, faucet and full counter surface' },
+    { icon: '🧊', label: 'Fridge interior', hint: 'Open the fridge — show shelves, drawers and walls (must be empty)' },
+  ],
+  Kitchen: [
+    { icon: '🏠', label: 'Overview',        hint: 'Stand at the entrance — show the whole kitchen' },
+    { icon: '🔥', label: 'Stovetop',        hint: 'Show burners, grates and surrounding surface from above' },
+    { icon: '🫙', label: 'Oven interior',   hint: 'Open the oven door — show racks, walls and floor of oven' },
+    { icon: '🚰', label: 'Sink & counters', hint: 'Show the sink, faucet and full counter surface' },
+    { icon: '🧊', label: 'Fridge interior', hint: 'Open the fridge — show shelves, drawers and walls (must be empty)' },
+  ],
+  'Bathroom:standard': [
     { icon: '🚽', label: 'Toilet',          hint: 'Show the toilet, base, tank and floor around it' },
     { icon: '🛁', label: 'Shower / Tub',    hint: 'Capture the tub or shower, walls, tiles and fixtures' },
     { icon: '🪞', label: 'Vanity & mirror', hint: 'Show the sink, counter surface, mirror and cabinet' },
     { icon: '🪣', label: 'Floor',           hint: 'Capture the floor tiles and all corners of the room' },
+  ],
+  Bathroom: [
+    { icon: '🚽', label: 'Toilet',          hint: 'Show the toilet, base, tank and floor around it — include behind the tank' },
+    { icon: '🛁', label: 'Shower / Tub',    hint: 'Capture the tub or shower walls, tiles, grout lines and fixtures' },
+    { icon: '🚿', label: 'Shower door',     hint: 'Show the shower door or curtain, tracks and any soap scum buildup' },
+    { icon: '🪞', label: 'Vanity & mirror', hint: 'Show the sink, counter surface, mirror and cabinet interior' },
+    { icon: '🪣', label: 'Floor & corners', hint: 'Capture the floor tiles, grout lines and all four corners' },
   ],
   Bedroom: [
     { icon: '🚪', label: 'Full room',       hint: 'Stand in the doorway — show the whole room ahead' },
@@ -52,10 +73,13 @@ const ROOM_SHOTS: Record<string, ShotItem[]> = {
   ],
 };
 
-function getShotGuide(roomName: string): ShotItem[] {
-  if (ROOM_SHOTS[roomName]) return ROOM_SHOTS[roomName];
-  const key = Object.keys(ROOM_SHOTS).find(k => roomName.startsWith(k));
-  if (key) return ROOM_SHOTS[key];
+function getShotGuide(roomName: string, cleaningType: string): ShotItem[] {
+  const tier = cleaningType.includes('Move') || cleaningType.includes('Deep') ? 'deep' : 'standard';
+  const tieredKey = `${roomName}:${tier}`;
+  if (ROOM_SHOTS[tieredKey]) return ROOM_SHOTS[tieredKey];
+  if (ROOM_SHOTS[roomName])  return ROOM_SHOTS[roomName];
+  const baseKey = Object.keys(ROOM_SHOTS).find(k => !k.includes(':') && roomName.startsWith(k));
+  if (baseKey) return ROOM_SHOTS[baseKey];
   // Generic fallback
   return [
     { icon: '👁️', label: 'Main view',   hint: 'Stand in the doorway — show the full room ahead' },
@@ -68,16 +92,17 @@ function getShotGuide(roomName: string): ShotItem[] {
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 interface Props {
-  roomName:    string;
-  maxCaptures: number;
-  isLastRoom:  boolean;
-  onCapture:   (file: File) => void;
-  onClose:     () => void;
+  roomName:     string;
+  cleaningType: string;
+  maxCaptures:  number;
+  isLastRoom:   boolean;
+  onCapture:    (file: File) => void;
+  onClose:      () => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, onClose }: Props) {
+export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom, onCapture, onClose }: Props) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -91,8 +116,15 @@ export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, on
   const maxRef       = useRef(maxCaptures);
   const onCaptureRef = useRef(onCapture);
 
-  // Shot guide — stable since roomName never changes during component lifetime
-  const shotGuide    = getShotGuide(roomName);
+  // Zoom refs
+  const zoomRef           = useRef(1);
+  const hwZoomRangeRef    = useRef<{ min: number; max: number } | null>(null);
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartZoomRef = useRef(1);
+  const zoomHideTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Shot guide — stable since roomName/cleaningType never change during component lifetime
+  const shotGuide    = getShotGuide(roomName, cleaningType);
   const shotGuideRef = useRef(shotGuide);
 
   // Guide overlay state — starts true so first shot's guide shows immediately
@@ -107,6 +139,9 @@ export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, on
   const [flash,         setFlash]         = useState(false);
   const [capturedCount, setCapturedCount] = useState(0);
   const [angleIdx,      setAngleIdx]      = useState(0);
+  const [zoomLevel,     setZoomLevel]     = useState(1);
+  const [showZoom,      setShowZoom]      = useState(false);
+  const [hwZoom,        setHwZoom]        = useState(false);
 
   // ── Request camera ────────────────────────────────────────────────────────
 
@@ -143,6 +178,59 @@ export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, on
     video.play().catch(() => {});
   }, [permission]);
 
+  // ── Detect hardware zoom support ──────────────────────────────────────────
+
+  useEffect(() => {
+    if (permission !== 'granted') return;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const caps = track.getCapabilities() as Record<string, unknown>;
+    if (caps?.zoom && typeof caps.zoom === 'object') {
+      const z = caps.zoom as { min: number; max: number };
+      hwZoomRangeRef.current = { min: z.min, max: z.max };
+      setHwZoom(true);
+    }
+  }, [permission]);
+
+  // ── Zoom helpers ──────────────────────────────────────────────────────────
+
+  function applyZoom(level: number) {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const max     = hwZoomRangeRef.current?.max ?? 4;
+    const clamped = Math.max(1, Math.min(max, level));
+    zoomRef.current = clamped;
+    setZoomLevel(clamped);
+
+    if (hwZoomRangeRef.current) {
+      track.applyConstraints({ advanced: [{ zoom: clamped } as MediaTrackConstraintSet] }).catch(() => {});
+    }
+
+    setShowZoom(true);
+    if (zoomHideTimerRef.current) clearTimeout(zoomHideTimerRef.current);
+    zoomHideTimerRef.current = setTimeout(() => setShowZoom(false), 1200);
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (e.touches.length !== 2) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchStartDistRef.current  = Math.hypot(dx, dy);
+    pinchStartZoomRef.current  = zoomRef.current;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (e.touches.length !== 2 || pinchStartDistRef.current === null) return;
+    const dx   = e.touches[0].clientX - e.touches[1].clientX;
+    const dy   = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    applyZoom(pinchStartZoomRef.current * (dist / pinchStartDistRef.current));
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length < 2) pinchStartDistRef.current = null;
+  }
+
   // ── Capture a single frame ────────────────────────────────────────────────
 
   const captureFrame = useCallback(() => {
@@ -156,7 +244,19 @@ export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, on
     const cap = document.createElement('canvas');
     cap.width  = video.videoWidth  || 1280;
     cap.height = video.videoHeight || 720;
-    cap.getContext('2d')!.drawImage(video, 0, 0);
+    const ctx  = cap.getContext('2d')!;
+
+    const zoom = zoomRef.current;
+    if (!hwZoomRangeRef.current && zoom > 1) {
+      // Software zoom: crop the centre and scale up to full resolution
+      const srcW = cap.width  / zoom;
+      const srcH = cap.height / zoom;
+      const srcX = (cap.width  - srcW) / 2;
+      const srcY = (cap.height - srcH) / 2;
+      ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, cap.width, cap.height);
+    } else {
+      ctx.drawImage(video, 0, 0);
+    }
 
     setFlash(true);
     setTimeout(() => setFlash(false), 250);
@@ -344,14 +444,29 @@ export function CameraCapture({ roomName, maxCaptures, isLastRoom, onCapture, on
       {permission === 'granted' && (
         <>
           {/* Video + overlays */}
-          <div className="relative flex-1 overflow-hidden bg-black">
+          <div
+            className="relative flex-1 overflow-hidden bg-black"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <video
               ref={videoRef}
               playsInline
               muted
               autoPlay
               className="absolute inset-0 w-full h-full object-cover"
+              style={!hwZoom && zoomLevel > 1 ? { transform: `scale(${zoomLevel})` } : undefined}
             />
+
+            {/* Zoom level indicator */}
+            {showZoom && zoomLevel > 1.05 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                <div className="bg-black/60 text-white text-xl font-bold px-5 py-2 rounded-full">
+                  {zoomLevel.toFixed(1)}×
+                </div>
+              </div>
+            )}
 
             {/* Viewfinder corners */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">

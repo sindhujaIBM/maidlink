@@ -79,9 +79,9 @@ function AnalysisCard({ item }: { item: AdminEstimatorAnalysis }) {
 
           <p className="text-sm text-gray-700 italic">{r.conditionAssessment}</p>
 
-          {r.cleaningTypeNote && (
+          {r.upgradeRecommendation && (
             <div className="text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
-              {r.cleaningTypeNote}
+              Upgrade recommended: {r.upgradeRecommendation.suggestedType} — {r.upgradeRecommendation.reason}
             </div>
           )}
 
@@ -170,11 +170,6 @@ function AnalysisCard({ item }: { item: AdminEstimatorAnalysis }) {
           {r.confidenceNote && (
             <p className="text-xs text-gray-400 italic">{r.confidenceNote}</p>
           )}
-
-          <button type="button" onClick={() => window.print()}
-            className="btn-secondary text-sm print:hidden">
-            Save as PDF
-          </button>
         </div>
       )}
 
