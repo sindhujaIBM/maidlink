@@ -7,6 +7,7 @@ export default defineWorkspace([
     test: {
       name: 'shared',
       include: ['packages/shared/src/__tests__/**/*.test.ts'],
+      exclude: ['**/node_modules/**', '**/dist/**', 'tests/**'],
       environment: 'node',
     },
   },
@@ -21,6 +22,7 @@ export default defineWorkspace([
     test: {
       name: 'booking',
       include: ['services/booking/src/__tests__/**/*.unit.test.ts'],
+      exclude: ['**/node_modules/**', '**/dist/**', 'tests/**'],
       environment: 'node',
     },
   },
@@ -30,6 +32,7 @@ export default defineWorkspace([
     test: {
       name: 'frontend',
       include: ['frontend/src/__tests__/**/*.test.ts'],
+      exclude: ['**/node_modules/**', '**/dist/**', 'tests/**'],
       environment: 'node',
     },
   },

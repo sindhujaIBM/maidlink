@@ -25,7 +25,8 @@
     "lint": "eslint 'packages/*/src/**/*.ts' 'services/*/src/**/*.ts' 'frontend/src/**/*.{ts,tsx}' --max-warnings=0",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
