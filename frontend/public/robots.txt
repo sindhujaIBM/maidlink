@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /bookings
+Disallow: /profile
+Disallow: /maid/
+Disallow: /auth/
+Disallow: /dev-login
+Disallow: /admin/
+
+Sitemap: https://maidlink.ca/sitemap.xml

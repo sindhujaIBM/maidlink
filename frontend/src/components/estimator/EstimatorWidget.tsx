@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner } from '../ui/Spinner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,8 +11,10 @@ import {
 } from '../../api/estimator';
 import { CLEANING_CHECKLIST, type CleaningTypeKey } from '../../data/cleaningChecklist';
 import { CameraCapture } from './CameraCapture';
-import { QRCodeSVG } from 'qrcode.react';
-import jsPDF from 'jspdf';
+
+const QRCodeSVG = lazy(() =>
+  import('qrcode.react').then(m => ({ default: m.QRCodeSVG }))
+);
 
 // ── Types & constants ─────────────────────────────────────────────────────────
 
@@ -51,10 +53,12 @@ const PRIORITY_COLOR: Record<string, [number, number, number]> = {
   standard: [75,  85,  99],   // gray-600
 };
 
-function downloadChecklist(
+async function downloadChecklist(
   result: EstimatorAnalysisResult,
   bedrooms: number, bathrooms: number, cleaningType: string,
 ) {
+  const { default: jsPDF } = await import('jspdf');
+
   const typeKey: CleaningTypeKey = cleaningType.includes('Move') ? 'moveout'
     : cleaningType.includes('Deep') ? 'deep' : 'standard';
 
@@ -701,7 +705,9 @@ export function EstimatorWidget() {
           {/* Desktop → mobile nudge */}
           {!isTouchDevice && !nudgeDismissed && (
             <div className="flex items-start gap-4 p-4 mb-4 rounded-xl bg-amber-50 border border-amber-200">
-              <QRCodeSVG value={window.location.href} size={72} className="shrink-0 rounded" />
+              <Suspense fallback={<div className="w-[72px] h-[72px] bg-gray-100 rounded shrink-0" />}>
+                <QRCodeSVG value={window.location.href} size={72} className="shrink-0 rounded" />
+              </Suspense>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-amber-800 text-sm">Use your phone for best results</p>
                 <p className="text-amber-700 text-xs mt-1 leading-relaxed">

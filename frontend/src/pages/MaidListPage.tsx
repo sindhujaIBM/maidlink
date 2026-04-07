@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listMaids } from '../api/users';
@@ -80,8 +81,17 @@ export function MaidListPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Book a Home Cleaner in Calgary — MaidLink</title>
+        <meta name="description" content="Browse admin-verified home cleaners in Calgary. Filter by availability, cleaning type, and language. Instant online booking." />
+        <meta property="og:title" content="Book a Home Cleaner in Calgary — MaidLink" />
+        <meta property="og:description" content="Browse admin-verified home cleaners in Calgary. Filter by availability and book instantly." />
+        <meta property="og:url" content="https://maidlink.ca/maids" />
+        <link rel="canonical" href="https://maidlink.ca/maids" />
+      </Helmet>
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Browse Maids in Calgary</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Book a Home Cleaner in Calgary</h1>
+        <p className="text-sm text-gray-500 mb-6">Admin-verified residential cleaners — standard, deep, and move-out cleaning available.</p>
 
         {/* Filters */}
         <form onSubmit={handleSearch} className="card mb-8 space-y-4">

@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async';
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { submitMaidApplication } from '../api/maidApplications';
@@ -123,6 +124,14 @@ export function MaidApplicationPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      <Helmet>
+        <title>Become a Cleaner in Calgary — MaidLink</title>
+        <meta name="description" content="Apply to join MaidLink as a home cleaner in Calgary. Set your own hours, get matched with verified clients, and grow your cleaning business." />
+        <meta property="og:title" content="Become a Cleaner in Calgary — MaidLink" />
+        <meta property="og:description" content="Apply to join MaidLink as a home cleaner in Calgary. Set your own hours and grow your cleaning business." />
+        <meta property="og:url" content="https://maidlink.ca/become-a-maid" />
+        <link rel="canonical" href="https://maidlink.ca/become-a-maid" />
+      </Helmet>
       {/* Header */}
       <div className="border-b border-gray-100 px-4 py-4 flex items-center gap-3">
         <Link to="/">

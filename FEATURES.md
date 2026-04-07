@@ -1,6 +1,6 @@
 # MaidLink — Features & Proposals
 
-_Last updated: 2026-04-01_
+_Last updated: 2026-04-07_
 
 ## Status Legend
 - ✅ **Done** — Implemented and deployed (or ready to deploy)
@@ -59,8 +59,16 @@ _Last updated: 2026-04-01_
 - ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
 - ✅ **Booking soft deletes** — Cancellations record `cancelled_at`, `cancelled_by`, `cancellation_reason` instead of hard-deleting
 
+### SEO & Analytics
+- ✅ **Per-page meta tags** — `react-helmet-async` sets unique `<title>`, `<meta description>`, Open Graph, and canonical URL on all 4 public pages (`/`, `/maids`, `/estimate`, `/become-a-maid`)
+- ✅ **Local Business JSON-LD** — `HomeAndConstructionBusiness` structured data on homepage; includes `areaServed: Calgary`, service types, address region
+- ✅ **robots.txt + sitemap.xml** — Blocks auth/admin routes; sitemap covers 4 public URLs with priorities; submitted to Google Search Console (4 pages discovered)
+- ✅ **Google Analytics 4** — GA4 tag (`G-PTB1W634BF`) in `index.html`; tracks all page views automatically
+- ✅ **Bundle code splitting** — `jspdf` + `html2canvas` (PDF export) and `qrcode.react` lazy-loaded on demand; main bundle reduced from 870KB → 462KB gzip
+
 ### Testing
 - ✅ **Vitest unit test suite** — 88 tests across 6 files; covers shared validation, JWT, errors, booking pricing, tstzrange builder, and estimator calc formula; runs in 235ms with no DB or AWS required (`npm test`)
+- ✅ **Integration test suite** — 14 tests across 2 files (`booking`, `estimator-ratelimit`); requires Docker Postgres; run with `npm run test:integration`
 
 ---
 

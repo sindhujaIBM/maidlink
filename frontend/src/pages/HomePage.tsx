@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
@@ -10,6 +11,38 @@ export function HomePage() {
   }
 
   return (
+    <>
+      <Helmet>
+        <title>MaidLink — Book Trusted Home Cleaners in Calgary</title>
+        <meta name="description" content="Book verified, reliable home cleaners in Calgary. Get a free AI-powered cleaning estimate in 2 minutes. No double-bookings, ever." />
+        <meta property="og:title" content="MaidLink — Book Trusted Home Cleaners in Calgary" />
+        <meta property="og:description" content="Book verified, reliable home cleaners in Calgary. Get a free AI-powered cleaning estimate in 2 minutes." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://maidlink.ca/" />
+        <meta property="og:image" content="https://maidlink.ca/logo-full.png" />
+        <link rel="canonical" href="https://maidlink.ca/" />
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "HomeAndConstructionBusiness",
+          "name": "MaidLink",
+          "url": "https://maidlink.ca",
+          "logo": "https://maidlink.ca/logo-full.png",
+          "description": "Book verified, reliable home cleaners in Calgary. Standard, deep, and move-out cleaning services.",
+          "areaServed": {
+            "@type": "City",
+            "name": "Calgary",
+            "sameAs": "https://www.wikidata.org/wiki/Q36312"
+          },
+          "serviceType": ["Standard Cleaning", "Deep Cleaning", "Move-Out Cleaning", "Move-In Cleaning"],
+          "priceRange": "$$",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Calgary",
+            "addressRegion": "AB",
+            "addressCountry": "CA"
+          }
+        })}</script>
+      </Helmet>
     <div className="min-h-screen bg-white">
       {/* Hero */}
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 pt-10 pb-8">
@@ -82,5 +115,6 @@ export function HomePage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
