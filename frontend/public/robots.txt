@@ -1,5 +1,9 @@
 User-agent: *
 Allow: /
+Allow: /maids
+Allow: /estimate
+Allow: /become-a-maid
+
 Disallow: /dashboard
 Disallow: /bookings
 Disallow: /profile
@@ -7,5 +11,12 @@ Disallow: /maid/
 Disallow: /auth/
 Disallow: /dev-login
 Disallow: /admin/
+
+# Block WordPress ghost paths from a previous installation
+Disallow: /author/
+Disallow: /hello-world/
+Disallow: /wp-
+Disallow: /?p=
+Disallow: /feed/
 
 Sitemap: https://maidlink.ca/sitemap.xml
