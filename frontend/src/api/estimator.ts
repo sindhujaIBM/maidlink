@@ -95,6 +95,13 @@ export interface EstimatorHistoryItem {
   };
   result:    EstimatorAnalysisResult;
   photoUrls: string[];
+  adminFeedback?: {
+    adjustedHours?: number;
+    note:           string;
+    reviewedBy:     string;
+    reviewedAt:     string;
+    notifyCustomer: boolean;
+  } | null;
 }
 
 export async function getEstimatorHistory(): Promise<EstimatorHistoryItem[]> {

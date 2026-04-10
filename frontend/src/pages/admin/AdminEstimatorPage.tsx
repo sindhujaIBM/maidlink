@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../../components/layout/Layout';
 import { Spinner } from '../../components/ui/Spinner';
-import { listAdminEstimatorAnalyses, type AdminEstimatorAnalysis } from '../../api/admin';
+import { listAdminEstimatorAnalyses, saveEstimatorFeedback, type AdminEstimatorAnalysis } from '../../api/admin';
 
 const CONDITION_LABEL: Record<string, string> = {
   pristine:   'Pristine',
@@ -24,13 +24,118 @@ const PRIORITY_CLS: Record<string, string> = {
   standard: 'bg-gray-100   text-gray-500',
 };
 
-function AnalysisCard({ item }: { item: AdminEstimatorAnalysis }) {
+function FeedbackForm({ item, onSaved }: { item: AdminEstimatorAnalysis; onSaved: () => void }) {
+  const [adjustedHours, setAdjustedHours] = useState<string>(
+    item.adminFeedback?.adjustedHours != null ? String(item.adminFeedback.adjustedHours) : '',
+  );
+  const [note, setNote]               = useState(item.adminFeedback?.note ?? '');
+  const [notifyCustomer, setNotify]   = useState(item.adminFeedback?.notifyCustomer ?? true);
+  const [editing, setEditing]         = useState(!item.adminFeedback);
+
+  const mutation = useMutation({
+    mutationFn: () => saveEstimatorFeedback(item.id, {
+      adjustedHours: adjustedHours ? Number(adjustedHours) : undefined,
+      note,
+      notifyCustomer,
+    }),
+    onSuccess: () => { setEditing(false); onSaved(); },
+  });
+
+  if (!editing && item.adminFeedback) {
+    const fb = item.adminFeedback;
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-green-800">Reviewed by specialist</span>
+          <button type="button" onClick={() => setEditing(true)}
+            className="text-xs text-green-700 underline hover:no-underline">
+            Edit
+          </button>
+        </div>
+        {fb.adjustedHours != null && (
+          <p className="text-sm text-green-800">
+            Adjusted to <strong>{fb.adjustedHours}h</strong>{' '}
+            <span className="text-green-600 text-xs">(AI: {item.result.oneCleanerHours}h)</span>
+          </p>
+        )}
+        <p className="text-sm text-green-700 italic">"{fb.note}"</p>
+        <p className="text-xs text-green-500">
+          By {fb.reviewedBy} · {new Date(fb.reviewedAt).toLocaleDateString('en-CA')}
+          {fb.notifyCustomer ? ' · Customer notified' : ''}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 space-y-3">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Specialist Review</p>
+
+      <div className="flex items-center gap-3">
+        <label className="text-sm text-gray-700 flex-none w-32">Adjusted hours</label>
+        <input
+          type="number" min="0.5" max="24" step="0.5"
+          value={adjustedHours}
+          onChange={e => setAdjustedHours(e.target.value)}
+          placeholder={`${item.result.oneCleanerHours} (AI estimate)`}
+          className="input w-36 text-sm"
+        />
+        <span className="text-xs text-gray-400">leave blank to keep AI hours</span>
+      </div>
+
+      <div>
+        <label className="text-sm text-gray-700 block mb-1">Note <span className="text-red-500">*</span></label>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value.slice(0, 500))}
+          rows={3}
+          placeholder="Observation for admin log and/or customer…"
+          className="input w-full text-sm resize-none"
+        />
+        <p className="text-xs text-gray-400 text-right mt-0.5">{note.length}/500</p>
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" checked={notifyCustomer} onChange={e => setNotify(e.target.checked)}
+          className="w-4 h-4 rounded text-brand-600" />
+        <span className="text-sm text-gray-700">Notify customer by email</span>
+      </label>
+
+      {mutation.isError && (
+        <p className="text-sm text-red-600">Failed to save — please try again.</p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button type="button"
+          disabled={!note.trim() || mutation.isPending}
+          onClick={() => mutation.mutate()}
+          className="btn-primary text-sm disabled:opacity-40">
+          {mutation.isPending ? 'Saving…' : 'Save feedback'}
+        </button>
+        {item.adminFeedback && (
+          <button type="button" onClick={() => setEditing(false)}
+            className="btn-secondary text-sm">
+            Cancel
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AnalysisCard({ item: initialItem }: { item: AdminEstimatorAnalysis }) {
   const [open, setOpen]               = useState(false);
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
   const [openRooms, setOpenRooms]     = useState<Set<string>>(new Set());
+  const item = initialItem;
+  const qc                            = useQueryClient();
 
   const toggleRoom = (room: string) =>
     setOpenRooms(prev => { const s = new Set(prev); s.has(room) ? s.delete(room) : s.add(room); return s; });
+
+  const handleFeedbackSaved = () => {
+    qc.invalidateQueries({ queryKey: ['adminEstimatorAnalyses'] });
+  };
 
   const hd   = item.homeDetails;
   const r    = item.result;
@@ -47,12 +152,17 @@ function AnalysisCard({ item }: { item: AdminEstimatorAnalysis }) {
       >
         <div className="flex-1 min-w-0">
           {/* User identity */}
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             {item.user.avatarUrl && (
               <img src={item.user.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
             )}
             <span className="font-semibold text-gray-900 text-sm">{item.user.name}</span>
             <span className="text-gray-400 text-xs">{item.user.email}</span>
+            {item.adminFeedback && (
+              <span className="text-xs bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-medium">
+                Reviewed ✓
+              </span>
+            )}
           </div>
           {/* Estimate summary */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -170,6 +280,9 @@ function AnalysisCard({ item }: { item: AdminEstimatorAnalysis }) {
           {r.confidenceNote && (
             <p className="text-xs text-gray-400 italic">{r.confidenceNote}</p>
           )}
+
+          {/* Admin feedback */}
+          <FeedbackForm item={item} onSaved={handleFeedbackSaved} />
         </div>
       )}
 

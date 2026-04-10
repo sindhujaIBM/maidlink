@@ -11,7 +11,7 @@ export interface CalcResult {
 /**
  * Calculates estimated cleaning hours for 1 and 2 cleaners.
  *
- * Base: bedrooms × 0.5 + bathrooms × 0.75 + sqft / 500
+ * Base: bedrooms × 0.6 + bathrooms × 0.9 + sqft / 500 + 0.25 (setup buffer)
  * Extras (basement, laundry, garage) added before cleaning-type multiplier.
  * Oven, refrigerator, windows added after multiplier.
  * Rounding: ≤ 4h → ceil to nearest 0.5; > 4h → ceil to nearest 1.
@@ -28,7 +28,7 @@ export function calcHours(
   extras: string[],
 ): CalcResult {
   const isMoveOut = cleaningType === 'Move-Out/Move-In Cleaning';
-  let base = bedrooms * 0.5 + bathrooms * 0.75 + sqft / 500;
+  let base = bedrooms * 0.6 + bathrooms * 0.9 + sqft / 500 + 0.25;
 
   // Location extras: added before cleaning-type multiplier, ignored for move-out
   if (!isMoveOut) {
@@ -59,8 +59,9 @@ export function calcHours(
     if (extras.includes('windows'))      base += 1;
   }
 
+  const BUFFER = 0.5; // setup + pack-down time
   const round = (n: number) => n <= 4 ? Math.ceil(n * 2) / 2 : Math.ceil(n);
-  return { one: round(base), two: round(base / 2) };
+  return { one: round(base + BUFFER), two: round((base + BUFFER) / 2) };
 }
 
 /**

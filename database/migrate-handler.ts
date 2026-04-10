@@ -276,6 +276,13 @@ ALTER TABLE estimator_analyses
   ADD COLUMN result        JSONB;
     `,
   },
+  {
+    name: '019_estimator_analyses_admin_feedback.sql',
+    sql: `
+ALTER TABLE estimator_analyses
+  ADD COLUMN IF NOT EXISTS admin_feedback JSONB;
+    `,
+  },
 ];
 
 export const handler = async (): Promise<{ statusCode: number; body: string }> => {

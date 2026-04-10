@@ -14,7 +14,7 @@ export const handler = withAuth(async (_event: APIGatewayProxyEvent, auth) => {
   const pool = getPool();
 
   const { rows } = await pool.query(
-    `SELECT id, created_at, home_details, photo_s3_keys, result
+    `SELECT id, created_at, home_details, photo_s3_keys, result, admin_feedback
      FROM estimator_analyses
      WHERE user_id = $1 AND result IS NOT NULL
      ORDER BY created_at DESC
@@ -28,11 +28,12 @@ export const handler = withAuth(async (_event: APIGatewayProxyEvent, auth) => {
         (row.photo_s3_keys as string[]).map(key => getPhotoUrl(key))
       );
       return {
-        id:          row.id,
-        createdAt:   row.created_at,
-        homeDetails: row.home_details,
-        result:      row.result,
-        photoUrls:   photoUrls.filter(Boolean) as string[],
+        id:            row.id,
+        createdAt:     row.created_at,
+        homeDetails:   row.home_details,
+        result:        row.result,
+        adminFeedback: row.admin_feedback ?? null,
+        photoUrls:     photoUrls.filter(Boolean) as string[],
       };
     })
   );

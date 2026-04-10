@@ -58,10 +58,18 @@ function EstimateCard({ item }: { item: EstimatorHistoryItem }) {
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
               {hd.cleaningType ?? 'Standard'}
             </span>
+            {item.adminFeedback && (
+              <span className="text-xs bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-medium">
+                Reviewed by specialist ✓
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500 mt-1">{date}</p>
           <p className="text-sm text-brand-700 font-medium mt-1">
-            {r.oneCleanerHours}h (1 cleaner) · {r.twoCleanerHours}h (2 cleaners)
+            {item.adminFeedback?.adjustedHours != null
+              ? <>{item.adminFeedback.adjustedHours}h <span className="text-gray-400 font-normal text-xs">(specialist adjusted · AI: {r.oneCleanerHours}h)</span></>
+              : <>{r.oneCleanerHours}h (1 cleaner) · {r.twoCleanerHours}h (2 cleaners)</>
+            }
           </p>
         </div>
         <span className="text-gray-400 text-sm flex-none mt-1">{open ? '▲' : '▼'}</span>
@@ -69,6 +77,20 @@ function EstimateCard({ item }: { item: EstimatorHistoryItem }) {
 
       {open && (
         <div className="mt-4 space-y-5 border-t border-gray-100 pt-4">
+
+          {/* Specialist review callout */}
+          {item.adminFeedback && (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-1">
+              <p className="text-sm font-semibold text-green-800">Reviewed by a MaidLink specialist</p>
+              {item.adminFeedback.adjustedHours != null && item.adminFeedback.adjustedHours !== r.oneCleanerHours && (
+                <p className="text-sm text-green-800">
+                  Estimate adjusted to <strong>{item.adminFeedback.adjustedHours}h</strong>{' '}
+                  <span className="text-green-600 text-xs">(AI estimated {r.oneCleanerHours}h)</span>
+                </p>
+              )}
+              <p className="text-sm text-green-700 italic">"{item.adminFeedback.note}"</p>
+            </div>
+          )}
 
           {/* AI condition summary */}
           <p className="text-sm text-gray-700 italic">{r.conditionAssessment}</p>

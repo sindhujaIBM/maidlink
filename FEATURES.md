@@ -1,6 +1,6 @@
 # MaidLink — Features & Proposals
 
-_Last updated: 2026-04-07_
+_Last updated: 2026-04-10_
 
 ## Status Legend
 - ✅ **Done** — Implemented and deployed (or ready to deploy)
@@ -25,7 +25,7 @@ _Last updated: 2026-04-07_
 - ✅ **Maid detail page** — Profile, weekly availability, reviews, booking form; pre-fills slot/cleaning type from URL params passed by filters or chat
 
 ### Estimator
-- ✅ **Cleaning time estimator** — Formula-based: bedrooms × 0.5 + bathrooms × 0.75 + sqft/500, with type/condition/pets/cooking multipliers and extras; rounding to 0.5h (≤4h) or 1h (>4h)
+- ✅ **Cleaning time estimator** — Recalibrated formula: `base = bedrooms×0.6 + bathrooms×0.9 + sqft/500 + 0.25` (setup buffer) + 0.5h pack-down buffer before rounding; type/condition/pets/cooking multipliers and extras; rounding to 0.5h (≤4h) or 1h (>4h)
 - ✅ **3-step AI estimator wizard** — Step 1: home details + live formula estimate; Step 2: per-room photo upload (min 5 / max 10 total, up to 5 per room); Step 3: AI results with room breakdown + checklist
 - ✅ **Per-room AI analysis** — Nova Lite analyses photos labelled by room; returns per-room condition, minutes estimate, and priority tasks; overall 1/2-cleaner hour total
 - ✅ **AI-generated cleaning checklist** — Customised per home from photos; tasks have priority (high/medium/standard) + AI note explaining why flagged; accordion UI; downloadable as PDF (room-by-room: AI highlights + full standard checklist per room, filtered by cleaning type)
@@ -46,14 +46,20 @@ _Last updated: 2026-04-07_
 
 ### Estimator History
 - ✅ **Customer estimate history** — `/estimate/history`: expandable cards per past estimate; shows home details, condition, hours, AI assessment, photos (lightbox), room breakdown, checklist, PDF download, and "Book a cleaner" link
-- ✅ **Admin estimator usage view** — `/admin/estimator`: all customers' estimates with user name/email/avatar, paginated; same card layout as customer history; linked from Admin Dashboard
+- ✅ **Admin estimator usage view** — `/admin/estimator`: all customers' estimates with user name/email/avatar, paginated; same card layout as customer history; linked from Admin Dashboard; upgrade recommendation shown inline
+- ✅ **Estimator upgrade comparison card** — When AI recommends an upgrade, results page shows side-by-side Option C stacked cards: current plan (tasks + hours) with booking CTA, connector strip with AI reason, upgrade card (brand-coloured, benefits list, booking CTA); calculates upgrade hours live
+- ✅ **Coverage review before AI analysis** — Before triggering AI, shows a room coverage panel with photo counts; "Add missing photos" auto-scrolls to first uncovered room; "Analyse anyway" bypasses
+- ✅ **Dark room detection** — Camera capture shows non-blocking amber warning after 0.7s of detected low brightness (canvas pixel sampling reuses existing stability loop data)
 
 ### Admin
 - ✅ **Admin maid approval queue** — Approve/reject maid profiles; verification badge management
 - ✅ **Maid application email notification** — SES email sent to muni@maidlink.ca on every become-a-maid form submission; includes all applicant fields; fire-and-forget (does not block 201 response)
+- ✅ **Admin estimator feedback (human-in-the-loop)** — Admin can review any customer estimate, optionally adjust hours, add a specialist note, and optionally send an SES email to the customer; `admin_feedback` JSONB stored in DB; "Reviewed ✓" badge on admin and customer history cards; customer sees adjusted hours + specialist note in their estimate history
 
 ### Infrastructure
 - ✅ **RDS PostgreSQL t3.micro** — Migrated from Aurora Serverless v2 (~$52/mo) to RDS PostgreSQL 15.8 t3.micro (~$13-15/mo); same VPC, same pg driver, zero-downtime data migration via one-shot Lambda
+- ✅ **SES bounce & complaint handling** — SES Configuration Set + SNS topic → Lambda; bounces and complaints trigger admin email alert to muni@maidlink.ca; all outbound emails use ConfigurationSetName; deployed to us-east-1 (SES not available in ca-west-1)
+- ✅ **React error boundary** — Top-level class component catches unhandled render errors; shows user-friendly fallback with refresh button; logs to console
 
 ### Auth & Security
 - ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
@@ -105,9 +111,6 @@ Save address and favourite maids. Auto-populate address on booking form. "Favour
 
 #### Admin: Dispute Resolution
 Dispute flag on bookings; admin can manually complete or refund. Needed once payments exist.
-
-#### SES Bounce & Complaint Handling (SNS)
-Currently all SES sends are fire-and-forget — bounces and spam complaints are invisible. High bounce/complaint rates cause AWS to throttle or suspend SES account-wide. Fix: create an SES Configuration Set, attach an SNS topic for bounce + complaint events, subscribe a Lambda that logs to DB and alerts admin. Must be in place before transactional emails go to customers at scale (booking confirmations, reminders). Low urgency while only sending internal admin notifications at low volume.
 
 ---
 

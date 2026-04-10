@@ -128,9 +128,18 @@ export interface MaidApplication {
   createdAt: string;
 }
 
+export interface AdminFeedback {
+  adjustedHours?: number;
+  note:           string;
+  reviewedBy:     string;
+  reviewedAt:     string;
+  notifyCustomer: boolean;
+}
+
 export interface AdminEstimatorAnalysis {
-  id:        string;
-  createdAt: string;
+  id:            string;
+  createdAt:     string;
+  adminFeedback?: AdminFeedback;
   homeDetails: {
     bedrooms:     number;
     bathrooms:    number;
@@ -166,6 +175,14 @@ export interface AdminEstimatorAnalysis {
 export async function listAdminEstimatorAnalyses(params?: { page?: number; limit?: number }) {
   const res = await adminClient.get('/admin/estimator/analyses', { params });
   return res.data.data as { items: AdminEstimatorAnalysis[]; total: number; page: number; limit: number };
+}
+
+export async function saveEstimatorFeedback(
+  id: string,
+  data: { adjustedHours?: number; note: string; notifyCustomer: boolean },
+) {
+  const res = await adminClient.patch(`/admin/estimator/analyses/${id}/feedback`, data);
+  return res.data.data as { success: boolean };
 }
 
 export interface AdminUser {

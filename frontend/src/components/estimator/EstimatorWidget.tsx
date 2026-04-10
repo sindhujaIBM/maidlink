@@ -1008,58 +1008,103 @@ export function EstimatorWidget() {
             )}
           </div>
 
-          {/* Upgrade recommendation card */}
-          {aiResult.upgradeRecommendation && (
-            <div className="card border-2 border-amber-400 bg-amber-50 space-y-3">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">⚠️</span>
-                <div>
-                  <p className="font-semibold text-amber-900 text-sm">
-                    AI recommends upgrading to {aiResult.upgradeRecommendation.suggestedType}
-                  </p>
-                  <p className="text-amber-800 text-xs mt-1 leading-relaxed">
-                    {aiResult.upgradeRecommendation.reason}
-                  </p>
+          {/* Upgrade comparison — Option C stacked cards */}
+          {aiResult.upgradeRecommendation ? (() => {
+            const upgrade    = aiResult.upgradeRecommendation!;
+            const upgradeType = upgrade.suggestedType as CleaningType;
+            const upgradeHours = calcHours(bedrooms, bathrooms, sqft, upgradeType, houseCondition, pets, cookingFreq, cookingStyle, extras).one;
+
+            // 4 representative standard tasks from checklist
+            const stdTypeKey: 'standard' | 'deep' | 'moveout' =
+              cleaningType.includes('Move') ? 'moveout' : cleaningType.includes('Deep') ? 'deep' : 'standard';
+            const stdTasks = CLEANING_CHECKLIST
+              .flatMap(r => r.items.filter(i => i.includedIn.includes(stdTypeKey) && i.priority === 'high'))
+              .slice(0, 4)
+              .map(i => i.task);
+
+            return (
+              <div className="space-y-0">
+                {/* Current plan card */}
+                <div className="card border-2 border-gray-200 rounded-b-none border-b-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Your current plan</p>
+                      <p className="font-semibold text-gray-900">{cleaningType}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-800">{aiResult.oneCleanerHours} hrs</p>
+                      <p className="text-xs text-gray-400">1 cleaner</p>
+                    </div>
+                  </div>
+                  <ul className="space-y-1.5 mb-4">
+                    {stdTasks.map(t => (
+                      <li key={t} className="flex items-start gap-2 text-xs text-gray-600">
+                        <span className="text-gray-400 mt-0.5 shrink-0">✓</span> {t}
+                      </li>
+                    ))}
+                  </ul>
+                  <button type="button"
+                    onClick={() => { setCleaningType(cleaningType); navigate('/maids'); }}
+                    className="w-full py-2.5 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                    Book {cleaningType} →
+                  </button>
+                </div>
+
+                {/* Connector */}
+                <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-x-2 border-amber-400">
+                  <span className="text-amber-500 text-xs">★</span>
+                  <p className="text-xs text-amber-800 font-medium flex-1">{upgrade.reason}</p>
+                  <span className="text-amber-500 text-xs">↓</span>
+                </div>
+
+                {/* Upgrade card */}
+                <div className="card border-2 border-brand-400 bg-brand-50 rounded-t-none border-t-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-brand-600 uppercase tracking-wide font-medium">AI recommends</p>
+                      <p className="font-semibold text-brand-900">{upgradeType}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-brand-800">{upgradeHours} hrs</p>
+                      <p className="text-xs text-brand-400">1 cleaner</p>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <p className="text-xs text-brand-600 font-medium mb-1.5">Everything in {cleaningType}, plus:</p>
+                    <ul className="space-y-1.5">
+                      {upgrade.benefits.map(b => (
+                        <li key={b} className="flex items-start gap-2 text-xs text-brand-800">
+                          <span className="text-brand-500 mt-0.5 shrink-0 font-bold">+</span> {b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button type="button"
+                    onClick={() => { setCleaningType(upgradeType); navigate('/maids'); }}
+                    className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm transition-colors">
+                    Book {upgradeType} →
+                  </button>
                 </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-1.5">
-                  What you'd get:
-                </p>
-                <ul className="space-y-1">
-                  {aiResult.upgradeRecommendation.benefits.map(b => (
-                    <li key={b} className="flex items-center gap-2 text-xs text-amber-900">
-                      <span className="text-amber-500">✓</span> {b}
-                    </li>
-                  ))}
-                </ul>
+            );
+          })() : (
+            /* No upgrade — show formula card only */
+            <div className="card bg-gray-50 border border-gray-200">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Formula estimate (for comparison)</p>
+              <div className={`grid gap-3 ${one <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-700">{one} hrs</div>
+                  <div className="text-xs text-gray-400">1 Cleaner</div>
+                </div>
+                {one > 5 && (
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-gray-700">{two} hrs</div>
+                    <div className="text-xs text-gray-400">2 Cleaners</div>
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setCleaningType(aiResult.upgradeRecommendation!.suggestedType as CleaningType)}
-                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors"
-              >
-                Switch to {aiResult.upgradeRecommendation.suggestedType}
-              </button>
             </div>
           )}
-
-          {/* Formula comparison */}
-          <div className="card bg-gray-50 border border-gray-200">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Formula estimate (for comparison)</p>
-            <div className={`grid gap-3 ${one <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              <div className="text-center">
-                <div className="text-xl font-bold text-gray-700">{one} hrs</div>
-                <div className="text-xs text-gray-400">1 Cleaner</div>
-              </div>
-              {one > 5 && (
-                <div className="text-center">
-                  <div className="text-xl font-bold text-gray-700">{two} hrs</div>
-                  <div className="text-xs text-gray-400">2 Cleaners</div>
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Coverage warnings — shown when AI detects missing angles */}
           {aiResult.coverageWarnings && aiResult.coverageWarnings.length > 0 && (

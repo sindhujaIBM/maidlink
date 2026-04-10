@@ -141,11 +141,19 @@ functions:
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
   listEstimatorAnalyses:
-    handler: src/handlers/estimatorAnalyses.handler
+    handler: src/handlers/estimatorAnalyses.listHandler
     events:
       - http:
           path: /admin/estimator/analyses
           method: get
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
+  saveEstimatorFeedback:
+    handler: src/handlers/estimatorAnalyses.feedbackHandler
+    events:
+      - http:
+          path: /admin/estimator/analyses/{id}/feedback
+          method: patch
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
 custom:
