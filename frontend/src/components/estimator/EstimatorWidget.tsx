@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { AlphaFeedbackForm } from './AlphaFeedbackForm';
 import { useNavigate } from 'react-router-dom';
 import { Spinner } from '../ui/Spinner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -727,6 +728,19 @@ export function EstimatorWidget() {
             </div>
           )}
 
+          {/* Vacancy reminder for Move-Out/Move-In */}
+          {cleaningType.toLowerCase().includes('move') && (
+            <div className="flex items-start gap-3 p-4 mb-4 rounded-xl bg-blue-50 border border-blue-200">
+              <span className="text-blue-500 text-lg shrink-0 mt-0.5">🏠</span>
+              <div>
+                <p className="font-semibold text-blue-800 text-sm">Rooms should be fully empty</p>
+                <p className="text-blue-700 text-xs mt-0.5 leading-relaxed">
+                  Move-Out/Move-In cleaning is designed for vacant properties. Please photograph rooms after all furniture and belongings have been removed. If rooms are still furnished, the AI will flag this in your estimate.
+                </p>
+              </div>
+            </div>
+          )}
+
           {!isAuthenticated ? (
             <div className="card text-center space-y-3">
               <p className="text-sm text-gray-600">Sign in to upload photos and get an AI-powered estimate.</p>
@@ -1236,6 +1250,9 @@ export function EstimatorWidget() {
           {aiResult.confidenceNote && (
             <p className="text-xs text-gray-400 italic text-center px-4">{aiResult.confidenceNote}</p>
           )}
+
+          {/* Alpha tester feedback — shown after full results, before CTAs */}
+          <AlphaFeedbackForm />
 
           <button type="button" onClick={() => navigate('/maids')} className="btn-primary w-full text-base py-3">
             Book a cleaner with this estimate

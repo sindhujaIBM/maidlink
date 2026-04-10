@@ -178,6 +178,14 @@ functions:
           method: get
           cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
 
+  submitAlphaFeedback:
+    handler: src/handlers/alphaFeedback.handler
+    events:
+      - http:
+          path: /users/me/alpha-feedback
+          method: post
+          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+
 custom:
   esbuild:
     bundle: true

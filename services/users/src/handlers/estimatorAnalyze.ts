@@ -85,6 +85,8 @@ UPGRADE RECOMMENDATION RULES:
 - Never recommend a downgrade
 - benefits[] must list specific tasks the upgraded service adds that are relevant to what you observed (3-5 items)
 - Omit upgradeRecommendation entirely if the requested cleaning type is appropriate
+- VACANCY DETECTION: If the requested service is Standard Cleaning or Deep Cleaning, but the majority of rooms appear vacant (no furniture, bare floors, empty walls, no personal belongings visible), recommend upgrading to Move-Out/Move-In Cleaning. Set reason to explain that vacant properties require a full interior reset (inside cabinets, inside appliances, baseboards, all hidden surfaces) to reach a move-in ready standard. Set suggestedType to "Move-Out/Move-In Cleaning".
+- FURNISHED MISMATCH: If the requested service is Move-Out/Move-In Cleaning but rooms appear furnished or occupied (furniture present, personal belongings visible), do NOT recommend a downgrade. Instead, note in conditionAssessment that Move-Out/Move-In cleaning is designed for vacant properties and set confidenceNote to: "Rooms appear furnished — Move-Out/Move-In cleaning applies to fully vacant properties. Please confirm all furniture and belongings will be removed before the cleaning date."
 
 OUTPUT: respond ONLY with valid JSON, no markdown fences:
 {
@@ -124,17 +126,22 @@ OUTPUT: respond ONLY with valid JSON, no markdown fences:
 }`;
 
 function buildUserPrompt(body: AnalyzeBody): string {
-  const extrasText = body.extras.length > 0 ? body.extras.join(', ') : 'none';
-  const petsText   = body.pets ? 'Yes — account for pet hair and dander' : 'No';
-  const roomList   = body.rooms
+  const extrasText  = body.extras.length > 0 ? body.extras.join(', ') : 'none';
+  const petsText    = body.pets ? 'Yes — account for pet hair and dander' : 'No';
+  const roomList    = body.rooms
     .map(r => `${r.room} (${r.photoS3Keys.length} photo${r.photoS3Keys.length > 1 ? 's' : ''})`)
     .join(', ');
+  const cleaningType = body.cleaningType ?? 'Standard Cleaning';
+  const isMoveClean  = cleaningType.toLowerCase().includes('move');
+  const vacancyNote  = isMoveClean
+    ? '\n⚠ Vacancy cleaning: the home is expected to be fully empty — no furniture or personal belongings — on the day of service. If rooms appear furnished or occupied, flag this in conditionAssessment and confidenceNote.'
+    : '';
 
   return `Customer's home details:
 - Bedrooms: ${body.bedrooms}
 - Bathrooms: ${body.bathrooms}
 - Size: ${body.sqftRange} sq ft
-- Cleaning type requested: ${body.cleaningType ?? 'Standard Cleaning'}
+- Cleaning type requested: ${cleaningType}${vacancyNote}
 - Self-reported condition: ${body.condition}
 - Pets: ${petsText}
 - Cooking frequency: ${body.cookingFreq ?? 'Occasionally'}, style: ${body.cookingStyle ?? 'Moderate'}
