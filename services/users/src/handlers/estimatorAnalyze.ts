@@ -338,6 +338,7 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   ses.send(new SendEmailCommand({
     Source:      'noreply@maidlink.ca',
     Destination: { ToAddresses: ['muni@maidlink.ca'] },
+    ...(process.env.SES_CONFIG_SET ? { ConfigurationSetName: process.env.SES_CONFIG_SET } : {}),
     Message: {
       Subject: { Data: `New Estimate — ${user?.full_name ?? auth.email} (${body.bedrooms}bd/${body.bathrooms}ba, ${body.cleaningType ?? 'Standard'})` },
       Body:    { Text: { Data: buildNotificationEmail(user?.full_name ?? auth.email, auth.email, body, result) } },

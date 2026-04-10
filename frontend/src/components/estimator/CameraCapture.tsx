@@ -8,6 +8,9 @@ const SAMPLE_STRIDE    = 16;   // bytes between samples (every 4th pixel in RGBA
 const PREVIEW_W        = 160;  // small canvas for diff computation
 const PREVIEW_H        = 90;
 
+const BRIGHTNESS_THRESHOLD = 45;  // avg luminance 0–255; below = "dark room"
+const DARK_FRAMES_NEEDED   = 20;  // ~0.7s of consecutive dark frames before warning
+
 const RING_R    = 36;
 const RING_CIRC = 2 * Math.PI * RING_R;
 
@@ -142,6 +145,8 @@ export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom,
   const [zoomLevel,     setZoomLevel]     = useState(1);
   const [showZoom,      setShowZoom]      = useState(false);
   const [hwZoom,        setHwZoom]        = useState(false);
+  const [isDark,        setIsDark]        = useState(false);
+  const darkFramesRef = useRef(0);
 
   // ── Request camera ────────────────────────────────────────────────────────
 
@@ -314,6 +319,23 @@ export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom,
       ctx.drawImage(video, 0, 0, PREVIEW_W, PREVIEW_H);
       const curr = ctx.getImageData(0, 0, PREVIEW_W, PREVIEW_H).data;
       const prev = prevRef.current;
+
+      // Always compute brightness (even on first frame, no prev needed)
+      {
+        let brightnessSum = 0, n = 0;
+        for (let i = 0; i < curr.length; i += SAMPLE_STRIDE) {
+          brightnessSum += (curr[i] + curr[i+1] + curr[i+2]) / 3;
+          n++;
+        }
+        const avgBrightness = brightnessSum / n;
+        if (avgBrightness < BRIGHTNESS_THRESHOLD) {
+          darkFramesRef.current = Math.min(DARK_FRAMES_NEEDED, darkFramesRef.current + 1);
+        } else {
+          darkFramesRef.current = 0;
+          setIsDark(false);
+        }
+        if (darkFramesRef.current >= DARK_FRAMES_NEEDED) setIsDark(true);
+      }
 
       if (prev) {
         let diffSum = 0, n = 0;
@@ -563,6 +585,16 @@ export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom,
               <p className="text-gray-400 text-xs text-center">
                 All {capturedCount} photos captured for this room
               </p>
+            )}
+
+            {/* Dark room warning */}
+            {isDark && !isDone && !showingGuide && (
+              <div className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/20 border border-amber-400/40">
+                <span className="text-lg shrink-0">💡</span>
+                <p className="text-amber-300 text-xs leading-snug">
+                  Room looks dark — turn on the lights for better AI results
+                </p>
+              </div>
             )}
 
             {/* Capture ring button */}

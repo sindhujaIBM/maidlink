@@ -3,17 +3,35 @@ frameworkVersion: '3'
 
 # SES must be deployed to us-east-1 — ca-west-1 does not support SES.
 # Deploy: cd infrastructure && npx serverless deploy -c serverless-ses.yml --stage prod --region us-east-1
-# After deploy: add the three DKIM CNAME records SES outputs to maidlink.ca DNS in Route 53.
+# After first deploy: add the three DKIM CNAME records SES outputs to maidlink.ca DNS in Route 53.
+# Config set name exported as: maidlink-ses-<stage>-ConfigSetName — used by services as SES_CONFIG_SET env var.
 
 provider:
   name: aws
   region: us-east-1
   stage: ${opt:stage, 'dev'}
+  runtime: nodejs20.x
+  environment:
+    ADMIN_EMAIL: muni@maidlink.ca
+    FROM_EMAIL: noreply@maidlink.ca
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: ses:SendEmail
+          Resource: '*'
+
+functions:
+  bounceHandler:
+    handler: src/sesBounceHandler.handler
+    events:
+      - sns:
+          arn: !Ref SesBounceTopic
+          topicName: maidlink-ses-bounce-${opt:stage, 'dev'}
 
 resources:
   Resources:
 
-    # Domain-level identity covers all @maidlink.app addresses (noreply@, muni@, etc.)
     SesEmailIdentity:
       Type: AWS::SES::EmailIdentity
       Properties:
@@ -21,18 +39,58 @@ resources:
         DkimAttributes:
           SigningEnabled: true
 
+    SesConfigurationSet:
+      Type: AWS::SES::ConfigurationSet
+      Properties:
+        Name: MaidlinkConfigSet-${opt:stage, 'dev'}
+
+    SesBounceTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: maidlink-ses-bounce-${opt:stage, 'dev'}
+
+    SesBounceTopicPolicy:
+      Type: AWS::SNS::TopicPolicy
+      Properties:
+        Topics:
+          - !Ref SesBounceTopic
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ses.amazonaws.com
+              Action: sns:Publish
+              Resource: !Ref SesBounceTopic
+
+    SesEventDestination:
+      Type: AWS::SES::ConfigurationSetEventDestination
+      DependsOn: SesConfigurationSet
+      Properties:
+        ConfigurationSetName: MaidlinkConfigSet-${opt:stage, 'dev'}
+        EventDestination:
+          Name: BounceComplaintSNS
+          Enabled: true
+          MatchingEventTypes:
+            - bounce
+            - complaint
+          SnsDestination:
+            TopicARN: !Ref SesBounceTopic
+
   Outputs:
     DkimName1:
       Value: !GetAtt SesEmailIdentity.DkimDNSTokenName1
     DkimValue1:
       Value: !GetAtt SesEmailIdentity.DkimDNSTokenValue1
-
     DkimName2:
       Value: !GetAtt SesEmailIdentity.DkimDNSTokenName2
     DkimValue2:
       Value: !GetAtt SesEmailIdentity.DkimDNSTokenValue2
-
     DkimName3:
       Value: !GetAtt SesEmailIdentity.DkimDNSTokenName3
     DkimValue3:
       Value: !GetAtt SesEmailIdentity.DkimDNSTokenValue3
+    ConfigSetName:
+      Value: !Ref SesConfigurationSet
+      Export:
+        Name: maidlink-ses-${opt:stage, 'dev'}-ConfigSetName

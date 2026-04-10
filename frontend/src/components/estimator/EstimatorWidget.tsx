@@ -351,7 +351,8 @@ export function EstimatorWidget() {
   const [uploading,    setUploading]   = useState(false);
   const [uploadError,  setUploadError] = useState<string | null>(null);
   const [activeRoom,   setActiveRoom]  = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const roomRefsMap   = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Camera capture state
   const [cameraRoom,        setCameraRoom]        = useState<string | null>(null);
@@ -360,6 +361,9 @@ export function EstimatorWidget() {
   // Desktop → mobile nudge
   const isTouchDevice  = navigator.maxTouchPoints > 0 || /Android|iPhone|iPad/i.test(navigator.userAgent);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
+  // Step 1 — coverage review
+  const [showReview,   setShowReview]  = useState(false);
 
   // Step 2 — results
   const [analyzing,    setAnalyzing]   = useState(false);
@@ -787,7 +791,8 @@ export function EstimatorWidget() {
                   const canAdd   = photos.length < MAX_PER_ROOM && totalPhotos < MAX_TOTAL;
 
                   return (
-                    <div key={room} className={`card border-2 transition-colors ${ready > 0 ? 'border-brand-200' : 'border-gray-100'}`}>
+                    <div key={room} ref={el => { roomRefsMap.current[room] = el; }}
+                      className={`card border-2 transition-colors ${ready > 0 ? 'border-brand-200' : 'border-gray-100'}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm text-gray-800">{room}</span>
@@ -884,18 +889,74 @@ export function EstimatorWidget() {
               {uploadError  && <p className="text-xs text-red-600">{uploadError}</p>}
               {analyzeError && <p className="text-xs text-red-600">{analyzeError}</p>}
 
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(0)}
-                  className="flex-none px-4 py-3 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                  ← Back
-                </button>
-                <button type="button" onClick={handleAnalyze} disabled={!canAnalyze || analyzing}
-                  className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                  {analyzing
-                    ? <><Spinner size="sm" /> Analysing rooms…</>
-                    : `Analyse ${totalReady} photo${totalReady !== 1 ? 's' : ''} with AI`}
-                </button>
-              </div>
+              {/* ── Coverage review panel ── */}
+              {showReview && (() => {
+                const missing = rooms.filter(r => !(roomPhotos[r] ?? []).some(p => p.s3Key !== null));
+                return (
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-gray-800">Review your coverage</p>
+                    <div className="space-y-1.5">
+                      {rooms.map(r => {
+                        const count = (roomPhotos[r] ?? []).filter(p => p.s3Key !== null).length;
+                        const ok    = count > 0;
+                        return (
+                          <div key={r} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-base ${ok ? 'text-green-500' : 'text-amber-500'}`}>
+                                {ok ? '✅' : '⚠️'}
+                              </span>
+                              <span className={`text-sm ${ok ? 'text-gray-700' : 'text-amber-700 font-medium'}`}>{r}</span>
+                            </div>
+                            <span className="text-xs text-gray-400">
+                              {ok ? `${count} photo${count !== 1 ? 's' : ''}` : 'no photos'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {missing.length > 0 && (
+                      <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                        The AI works best with photos of every room. Missing rooms will be estimated from your home details only.
+                      </p>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button type="button" onClick={() => {
+                          setShowReview(false);
+                          if (missing.length > 0) {
+                            setTimeout(() => {
+                              roomRefsMap.current[missing[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 50);
+                          }
+                        }}
+                        className="flex-none px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        {missing.length > 0 ? 'Add missing photos' : 'Go back'}
+                      </button>
+                      <button type="button" onClick={() => { setShowReview(false); handleAnalyze(); }}
+                        disabled={!canAnalyze || analyzing}
+                        className="flex-1 btn-primary py-2.5 flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                        {missing.length > 0 ? 'Analyse anyway' : `Analyse ${totalReady} photos with AI`}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {!showReview && (
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setStep(0)}
+                    className="flex-none px-4 py-3 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    ← Back
+                  </button>
+                  <button type="button"
+                    onClick={() => setShowReview(true)}
+                    disabled={!canAnalyze || analyzing}
+                    className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50">
+                    {analyzing
+                      ? <><Spinner size="sm" /> Analysing rooms…</>
+                      : `Analyse ${totalReady} photo${totalReady !== 1 ? 's' : ''} with AI`}
+                  </button>
+                </div>
+              )}
 
               {analyzing && (
                 <p className="text-xs text-gray-400 text-center">

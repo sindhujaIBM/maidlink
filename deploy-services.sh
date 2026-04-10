@@ -20,6 +20,7 @@ export DB_USER=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys
 export DB_PASSWORD=$(echo $SECRET | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])")
 export DB_SSL="true"
 export PHOTOS_BUCKET="maidlink-infra-prod-photosbucket-f9zualsqxenk"
+export SES_CONFIG_SET="MaidlinkConfigSet-prod"
 
 export JWT_SECRET=$(aws ssm get-parameter \
   --name /maidlink/prod/jwt-secret --with-decryption \

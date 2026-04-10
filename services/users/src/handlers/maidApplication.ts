@@ -60,6 +60,7 @@ export const submitHandler = async (event: APIGatewayProxyEvent) => {
     ses.send(new SendEmailCommand({
       Source: 'noreply@maidlink.ca',
       Destination: { ToAddresses: ['muni@maidlink.ca'] },
+      ...(process.env.SES_CONFIG_SET ? { ConfigurationSetName: process.env.SES_CONFIG_SET } : {}),
       Message: {
         Subject: { Data: `New Maid Application — ${fullName}` },
         Body: {

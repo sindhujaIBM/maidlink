@@ -23,6 +23,7 @@ provider:
     DB_SSL: ${env:DB_SSL, 'false'}
     JWT_SECRET: ${env:JWT_SECRET}
     PHOTOS_BUCKET: ${env:PHOTOS_BUCKET, 'maidlink-photos-local'}
+    SES_CONFIG_SET: ${env:SES_CONFIG_SET, ''}
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
   vpc:
     securityGroupIds:
