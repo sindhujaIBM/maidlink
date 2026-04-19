@@ -179,8 +179,10 @@ function EstimateForm() {
   const hrs       = result.one;
   const cleaners  = hrs > 5 ? 2 : 1;
   const onSite    = cleaners === 2 ? result.two : hrs;
-  const priceMin  = Math.round(hrs * 45);
-  const priceMax  = Math.round(hrs * 55);
+  const rate      = cleanType === 'moveout' ? 45 : 40;
+  const basePrice = Math.round(onSite * rate * cleaners);
+  const gstAmt    = Math.round(basePrice * 0.05);
+  const totalPrice = basePrice + gstAmt;
 
   const Stepper = ({ value, setValue, step = 1, min }: { value: number; setValue: (v: number) => void; step?: number; min: number }) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${C.line}`, background: '#fff' }}>
@@ -250,9 +252,9 @@ function EstimateForm() {
           <div style={{ fontSize: 11, color: C.ink70, marginTop: 3 }}>{cleaners} cleaner{cleaners > 1 ? 's' : ''} on site</div>
         </div>
         <div style={{ textAlign: 'right' as const }}>
-          <div style={{ fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 0.8, fontWeight: 700, color: C.ink50, marginBottom: 2 }}>Price range</div>
-          <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 600, color: C.ink, lineHeight: 1.1 }}>${priceMin}–${priceMax}</div>
-          <div style={{ fontSize: 10, color: C.ink70, marginTop: 3 }}>before photo review</div>
+          <div style={{ fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 0.8, fontWeight: 700, color: C.ink50, marginBottom: 2 }}>Estimated total</div>
+          <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 600, color: C.ink, lineHeight: 1.1 }}>${totalPrice}</div>
+          <div style={{ fontSize: 10, color: C.ink70, marginTop: 3 }}>${basePrice} + ${gstAmt} GST · ${rate}/hr</div>
         </div>
       </div>
 

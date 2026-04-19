@@ -20,12 +20,44 @@ const QRCodeSVG = lazy(() =>
 // ── Types & constants ─────────────────────────────────────────────────────────
 
 import {
-  calcHours, buildRoomList,
-  type CleaningType, type HouseCondition, type CookingFreq, type CookingStyle,
+  calcHours, buildRoomList, getRate, GST, FREQ_MULTIPLIER,
+  type CleaningType, type HouseCondition, type CookingFreq, type CookingStyle, type CleanFrequency,
 } from '../../lib/estimatorCalc';
 
-const CLEANING_TYPES: CleaningType[]    = ['Standard Cleaning', 'Deep Cleaning', 'Move-Out/Move-In Cleaning'];
+const CLEANING_TYPES: CleaningType[] = [
+  'Standard Cleaning',
+  'Deep Cleaning',
+  'Move-Out/Move-In Cleaning',
+  'Short-Term Rental Turnover',
+];
+
+const CLEAN_FREQUENCIES: CleanFrequency[] = ['One-time', 'Monthly', 'Biweekly', 'Weekly'];
+
+const FREQ_DESCRIPTIONS: Record<CleanFrequency, string> = {
+  'One-time':  '',
+  'Monthly':   '$35/hr · home visited ~4×/yr',
+  'Biweekly':  '$33/hr · home visited ~26×/yr',
+  'Weekly':    '$30/hr · home stays very clean',
+};
 const HOUSE_CONDITIONS: HouseCondition[]= ['Pristine', 'Lightly Used', 'Normal', 'Moderately Dirty', 'Heavily Soiled'];
+
+const CONDITION_DESCRIPTIONS: Record<HouseCondition, string> = {
+  'Pristine':         'Cleaned recently, minimal dust',
+  'Lightly Used':     'Light mess, small touch-ups needed',
+  'Normal':           'Regular everyday household mess',
+  'Moderately Dirty': 'Last cleaned 1–2 months ago',
+  'Heavily Soiled':   'Visible buildup, grease or neglect',
+};
+
+const SQFT_PRESETS = [
+  { label: '< 500',       value: 400  },
+  { label: '500–1,000',   value: 750  },
+  { label: '1,000–1,500', value: 1250 },
+  { label: '1,500–2,000', value: 1750 },
+  { label: '2,000–2,500', value: 2250 },
+  { label: '2,500+',      value: 3000 },
+];
+
 
 const EXTRAS = [
   { id: 'oven',         label: 'Inside Oven',      hours: 1    },
@@ -333,12 +365,13 @@ export function EstimatorWidget() {
   const [step,             setStep]            = useState(0);
   const [bedrooms,         setBedrooms]        = useState(2);
   const [bathrooms,        setBathrooms]       = useState(1);
-  const [sqft,             setSqft]            = useState(1000);
+  const [sqft,             setSqft]            = useState(750);
   const [cleaningType,     setCleaningType]    = useState<CleaningType>('Standard Cleaning');
   const [houseCondition,   setHouseCondition]  = useState<HouseCondition>('Normal');
   const [pets,             setPets]            = useState(false);
   const [cookingFreq,      setCookingFreq]     = useState<CookingFreq>('Occasionally');
   const [cookingStyle,     setCookingStyle]    = useState<CookingStyle>('Moderate');
+  const [frequency,        setFrequency]       = useState<CleanFrequency>('One-time');
   const [extras,           setExtras]          = useState<string[]>([]);
   const [includeKitchen,   setIncludeKitchen]  = useState(true);
   const [includeLivingRoom, setIncludeLivingRoom] = useState(true);
@@ -388,6 +421,7 @@ export function EstimatorWidget() {
       if (s.pets          !== undefined) setPets(s.pets);
       if (s.cookingFreq   !== undefined) setCookingFreq(s.cookingFreq);
       if (s.cookingStyle  !== undefined) setCookingStyle(s.cookingStyle);
+      if (s.frequency     !== undefined) setFrequency(s.frequency);
       if (s.extras        !== undefined) setExtras(s.extras);
       if (s.includeKitchen    !== undefined) setIncludeKitchen(s.includeKitchen);
       if (s.includeLivingRoom !== undefined) setIncludeLivingRoom(s.includeLivingRoom);
@@ -397,10 +431,15 @@ export function EstimatorWidget() {
   function saveFormState() {
     sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
       bedrooms, bathrooms, sqft, cleaningType, houseCondition,
-      pets, cookingFreq, cookingStyle, extras,
+      pets, cookingFreq, cookingStyle, frequency, extras,
       includeKitchen, includeLivingRoom,
     }));
   }
+
+  // Reset frequency when switching to a type that doesn't support it
+  useEffect(() => {
+    if (cleaningType !== 'Standard Cleaning') setFrequency('One-time');
+  }, [cleaningType]);
 
   // Auto-select extras for move-out
   useEffect(() => {
@@ -412,7 +451,7 @@ export function EstimatorWidget() {
   }, [cleaningType]);
 
   // Derived values
-  const { one, two } = calcHours(bedrooms, bathrooms, sqft, cleaningType, houseCondition, pets, cookingFreq, cookingStyle, extras);
+  const { one, two } = calcHours(bedrooms, bathrooms, sqft, cleaningType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency);
   const isMoveOut     = cleaningType === 'Move-Out/Move-In Cleaning';
   const allPhotos     = Object.values(roomPhotos).flat();
   const totalPhotos   = allPhotos.length;
@@ -602,25 +641,21 @@ export function EstimatorWidget() {
             </div>
 
             <div className="border-t border-gray-100 pt-4">
-              <Stepper label="Square Footage" value={sqft} min={0} max={5000} step={100} onChange={setSqft} />
-              <p className="text-xs text-gray-400 mt-1">Adjust in 100 sq ft increments</p>
-            </div>
-
-            <div className="border-t border-gray-100 pt-4">
-              <label className="label mb-2">Living Spaces</label>
-              <div className="flex gap-2">
-                {[
-                  { id: 'kitchen', label: 'Kitchen',     value: includeKitchen,    set: setIncludeKitchen },
-                  { id: 'living',  label: 'Living Room', value: includeLivingRoom, set: setIncludeLivingRoom },
-                ].map(({ id, label, value, set }) => (
-                  <button key={id} type="button" onClick={() => set(v => !v)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                      value ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+              <label className="label mb-2">Home Size</label>
+              <div className="grid grid-cols-3 gap-2">
+                {SQFT_PRESETS.map(p => (
+                  <button key={p.value} type="button" onClick={() => setSqft(p.value)}
+                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      sqft === p.value
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
                     }`}>
-                    {value ? '✓ ' : ''}{label}
+                    {p.label}
+                    <span className={`block text-xs mt-0.5 ${sqft === p.value ? 'text-brand-100' : 'text-gray-400'}`}>sq ft</span>
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-gray-400 mt-2">Not sure? Check your MLS listing or property tax notice.</p>
             </div>
           </div>
 
@@ -628,92 +663,156 @@ export function EstimatorWidget() {
           <div className="card space-y-5">
             <ChipGroup label="Cleaning Type" options={CLEANING_TYPES} value={cleaningType} onChange={setCleaningType} />
 
-            <div className="border-t border-gray-100 pt-4">
-              <ChipGroup label="House Condition" options={HOUSE_CONDITIONS} value={houseCondition} onChange={setHouseCondition} />
-            </div>
-
-            <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
-              <div>
-                <p className="label">Pets</p>
-                <p className="text-xs text-gray-400 mt-0.5">Adds 45 min for pet hair</p>
+            {/* Frequency — only for Standard Cleaning */}
+            {cleaningType === 'Standard Cleaning' && (
+              <div className="border-t border-gray-100 pt-4">
+                <label className="label mb-2">Frequency</label>
+                <div className="space-y-2">
+                  {CLEAN_FREQUENCIES.map(freq => (
+                    <button key={freq} type="button" onClick={() => setFrequency(freq)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                        frequency === freq
+                          ? 'bg-brand-50 border-brand-400 text-brand-800'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'
+                      }`}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{freq}</span>
+                        {freq !== 'One-time' && (
+                          <span className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
+                            {Math.round((1 - FREQ_MULTIPLIER[freq]) * 100)}% less time
+                          </span>
+                        )}
+                      </div>
+                      {FREQ_DESCRIPTIONS[freq] && (
+                        <span className={`text-xs ${frequency === freq ? 'text-brand-600' : 'text-gray-400'}`}>
+                          {FREQ_DESCRIPTIONS[freq]}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button type="button" onClick={() => setPets(p => !p)}
-                className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                  pets ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                }`}>
-                {pets ? 'Yes' : 'No'}
-              </button>
-            </div>
+            )}
 
-            <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
-              <div>
-                <p className="label">Heavy cooking kitchen</p>
-                <p className="text-xs text-gray-400 mt-0.5">Cooks frequently with heavy grease — adds 45 min</p>
+            {/* STR notice */}
+            {cleaningType === 'Short-Term Rental Turnover' && (
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Includes linen & towel turnover (+30 min). Condition adjustments not applied — trashed properties require a separate quote.
+                </p>
               </div>
-              <button type="button"
-                onClick={() => {
-                  const isHeavy = cookingFreq === 'Frequently' && cookingStyle === 'Heavy';
-                  setCookingFreq(isHeavy ? 'Occasionally' : 'Frequently');
-                  setCookingStyle(isHeavy ? 'Moderate'    : 'Heavy');
-                }}
-                className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                  cookingFreq === 'Frequently' && cookingStyle === 'Heavy'
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                }`}>
-                {cookingFreq === 'Frequently' && cookingStyle === 'Heavy' ? 'Yes' : 'No'}
-              </button>
-            </div>
+            )}
+
+            {/* Condition + pets hidden for STR — not relevant to turnover model */}
+            {cleaningType !== 'Short-Term Rental Turnover' && (<>
+              <div className="border-t border-gray-100 pt-4">
+                <label className="label mb-2">Home Condition</label>
+                <div className="space-y-2">
+                  {HOUSE_CONDITIONS.map(cond => (
+                    <button key={cond} type="button" onClick={() => setHouseCondition(cond)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                        houseCondition === cond
+                          ? 'bg-brand-50 border-brand-400 text-brand-800'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'
+                      }`}>
+                      <span className="font-medium">{cond}</span>
+                      <span className={`text-xs ${houseCondition === cond ? 'text-brand-600' : 'text-gray-400'}`}>
+                        {CONDITION_DESCRIPTIONS[cond]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
+                <div>
+                  <p className="label">Pets</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Adds 45 min for pet hair</p>
+                </div>
+                <button type="button" onClick={() => setPets(p => !p)}
+                  className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                    pets ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                  }`}>
+                  {pets ? 'Yes' : 'No'}
+                </button>
+              </div>
+            </>)}
           </div>
 
-          {/* ── Card 3: Add-ons ───────────────────────────────────────────────── */}
-          {!isMoveOut ? (
-            <div className="card">
-              <label className="label mb-2">Additional Tasks</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {EXTRAS.map(e => (
-                  <button key={e.id} type="button" onClick={() => toggleExtra(e.id)}
+          {/* ── Card 3: Add-ons — hidden for STR ─────────────────────────────── */}
+          {cleaningType !== 'Short-Term Rental Turnover' && <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <label className="label">Additional Tasks</label>
+              {isMoveOut && (
+                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                  All included in Move-Out
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {EXTRAS.map(e => {
+                const active = extras.includes(e.id);
+                return (
+                  <button key={e.id} type="button"
+                    onClick={() => !isMoveOut && toggleExtra(e.id)}
+                    disabled={isMoveOut}
                     className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      extras.includes(e.id) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                    }`}>
+                      active
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                    } disabled:cursor-default`}>
                     {e.label}
-                    <span className={`block text-xs mt-0.5 ${extras.includes(e.id) ? 'text-brand-100' : 'text-gray-400'}`}>
+                    <span className={`block text-xs mt-0.5 ${active ? 'text-brand-100' : 'text-gray-400'}`}>
                       +{EXTRA_MINS[e.hours]} min
                     </span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          ) : (
-            <div className="card bg-amber-50 border border-amber-200">
-              <p className="text-sm text-amber-800 font-medium">Move-Out/Move-In includes all add-ons</p>
-              <p className="text-xs text-amber-600 mt-0.5">Oven, fridge, windows, basement, laundry & garage are all included.</p>
-            </div>
-          )}
+          </div>}
 
-          {/* Formula estimate */}
-          <div className="card bg-brand-700 text-white">
-            <h2 className="text-sm font-medium text-brand-200 mb-3">Formula Estimate</h2>
-            <div className={`grid gap-4 ${one <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              <div className="bg-brand-600 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold">{one} hrs</div>
-                <div className="text-brand-200 text-sm mt-1">1 Cleaner</div>
-              </div>
-              {one > 5 && (
-                <div className="bg-brand-600 rounded-xl p-4 text-center">
-                  <div className="text-3xl font-bold">{two} hrs</div>
-                  <div className="text-brand-200 text-sm mt-1">2 Cleaners</div>
+          {/* Quick Estimate */}
+          {(() => {
+            const rate     = getRate(cleaningType, frequency);
+            const base1    = Math.round(one * rate);
+            const total1   = Math.round(base1 * (1 + GST));
+            const base2    = Math.round(two * rate * 2);
+            const total2   = Math.round(base2 * (1 + GST));
+            return (
+              <div className="card bg-brand-700 text-white">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-medium text-brand-200">Quick Estimate</h2>
+                  <span className="text-xs text-brand-300">${rate}/hr · +5% GST</span>
                 </div>
-              )}
-            </div>
-            <p className="text-xs text-brand-300 mt-3 text-center">
-              Upload room photos in the next step for a smarter AI estimate.
-            </p>
-          </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-brand-600 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold">{one} hrs</div>
+                    <div className="text-brand-200 text-sm mt-1">1 Cleaner</div>
+                    <div className="text-brand-300 text-xs mt-2">${base1} + GST</div>
+                    <div className="text-white text-sm font-semibold">${total1} total</div>
+                  </div>
+                  <div className="bg-brand-600 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold">{two} hrs</div>
+                    <div className="text-brand-200 text-sm mt-1">2 Cleaners</div>
+                    <div className="text-brand-300 text-xs mt-2">${base2} + GST</div>
+                    <div className="text-white text-sm font-semibold">${total2} total</div>
+                  </div>
+                </div>
+                <p className="text-xs text-brand-300 mt-3 text-center">
+                  Upload room photos in the next step for a smarter AI estimate.
+                </p>
+              </div>
+            );
+          })()}
 
           <button type="button" onClick={goToStep1} className="btn-primary w-full text-base py-3">
             Next: Upload Room Photos →
           </button>
+          {!isAuthenticated && (
+            <p className="text-xs text-center text-gray-400">
+              Photo analysis requires a free Google sign-in — you'll be prompted in the next step.
+            </p>
+          )}
         </>
       )}
 
@@ -809,6 +908,43 @@ export function EstimatorWidget() {
                   <p className="text-xs text-blue-500 mt-2">You can also upload photos from your gallery using the Upload button.</p>
                 </div>
               )}
+
+              {/* Living Spaces — controls which rooms appear in the list below */}
+              <div className="card py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Include rooms to photograph</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Deselect any rooms you want to skip</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {[
+                      { id: 'kitchen', label: 'Kitchen',     value: includeKitchen,    set: setIncludeKitchen },
+                      { id: 'living',  label: 'Living Room', value: includeLivingRoom, set: setIncludeLivingRoom },
+                    ].map(({ id, label, value, set }) => (
+                      <button key={id} type="button"
+                        onClick={() => {
+                          set((v: boolean) => !v);
+                          const newRoomList = buildRoomList(
+                            bedrooms, bathrooms, extras,
+                            id === 'kitchen'  ? !value : includeKitchen,
+                            id === 'living'   ? !value : includeLivingRoom,
+                          );
+                          setRooms(newRoomList);
+                          setRoomPhotos(prev => {
+                            const next: Record<string, typeof prev[string]> = {};
+                            for (const r of newRoomList) next[r] = prev[r] ?? [];
+                            return next;
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                          value ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400'
+                        }`}>
+                        {value ? '✓ ' : ''}{label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               {/* Per-room sections */}
               <div className="space-y-3">
@@ -1039,7 +1175,7 @@ export function EstimatorWidget() {
           {aiResult.upgradeRecommendation ? (() => {
             const upgrade    = aiResult.upgradeRecommendation!;
             const upgradeType = upgrade.suggestedType as CleaningType;
-            const upgradeHours = calcHours(bedrooms, bathrooms, sqft, upgradeType, houseCondition, pets, cookingFreq, cookingStyle, extras).one;
+            const upgradeHours = calcHours(bedrooms, bathrooms, sqft, upgradeType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency).one;
 
             // 4 representative standard tasks from checklist
             const stdTypeKey: 'standard' | 'deep' | 'moveout' =

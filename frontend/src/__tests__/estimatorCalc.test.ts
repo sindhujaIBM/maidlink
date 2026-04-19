@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcHours, buildRoomList } from '../lib/estimatorCalc';
+import { calcHours, buildRoomList, getRate, FREQ_MULTIPLIER, GST } from '../lib/estimatorCalc';
 
 // Baseline: 2 bed / 1 bath / 1000 sqft / Normal / Standard
 //   residual = max(0, 1000 − 2×175 − 1×65) = 585
@@ -266,5 +266,96 @@ describe('buildRoomList', () => {
     expect(rooms[1]).toBe('Living Room');
     expect(rooms[rooms.length - 2]).toBe('Basement');
     expect(rooms[rooms.length - 1]).toBe('Garage');
+  });
+});
+
+// ── Recurring frequency multipliers ───────────────────────────────────────────
+
+describe('calcHours — recurring frequency (Standard Cleaning only)', () => {
+  // Baseline one-time standard: 2/1/1000 base = 3.20 → one = 3.5
+
+  it('One-time applies ×1.0 (no change)', () => {
+    const r = calcHours(2, 1, 1000, 'Standard Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'One-time');
+    expect(r.one).toBe(3.5);
+  });
+
+  it('Monthly applies ×0.95', () => {
+    // 3.20 × 0.95 = 3.04 → ≤4 → ceil(6.08)/2 = 7/2 = 3.5
+    const r = calcHours(2, 1, 1000, 'Standard Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'Monthly');
+    expect(r.one).toBe(3.5);
+  });
+
+  it('Biweekly applies ×0.80', () => {
+    // 3.20 × 0.80 = 2.56 → ≤4 → ceil(5.12)/2 = 6/2 = 3
+    const r = calcHours(2, 1, 1000, 'Standard Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'Biweekly');
+    expect(r.one).toBe(3);
+  });
+
+  it('Weekly applies ×0.65', () => {
+    // 3.20 × 0.65 = 2.08 → ≤4 → ceil(4.16)/2 = 5/2 = 2.5
+    const r = calcHours(2, 1, 1000, 'Standard Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'Weekly');
+    expect(r.one).toBe(2.5);
+  });
+
+  it('frequency has no effect on Deep Cleaning', () => {
+    const oneTime = calcHours(2, 1, 1000, 'Deep Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'One-time');
+    const weekly  = calcHours(2, 1, 1000, 'Deep Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'Weekly');
+    expect(oneTime.one).toBe(weekly.one);
+  });
+
+  it('frequency has no effect on Move-Out Cleaning', () => {
+    const oneTime = calcHours(2, 1, 1000, 'Move-Out/Move-In Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'One-time');
+    const weekly  = calcHours(2, 1, 1000, 'Move-Out/Move-In Cleaning', 'Normal', false, 'Rarely', 'Light', [], 'Weekly');
+    expect(oneTime.one).toBe(weekly.one);
+  });
+});
+
+// ── Short-Term Rental Turnover ────────────────────────────────────────────────
+
+describe('calcHours — Short-Term Rental Turnover', () => {
+  // 2/1/1000: residual=585, base = 2×0.65 + 1×1.0 + 585/650 = 3.20
+  // STR: no type multiplier, no condition mult, +0.5h linen → 3.70 → ceil(7.4)/2 = 4
+
+  it('adds 0.5h for linen turnover and ignores condition multiplier', () => {
+    const normal  = calcHours(2, 1, 1000, 'Short-Term Rental Turnover', 'Normal',         false, 'Rarely', 'Light', []);
+    const soiled  = calcHours(2, 1, 1000, 'Short-Term Rental Turnover', 'Heavily Soiled', false, 'Rarely', 'Light', []);
+    expect(normal.one).toBe(4);
+    expect(soiled.one).toBe(normal.one);
+  });
+
+  it('ignores pets for STR', () => {
+    const noPets   = calcHours(2, 1, 1000, 'Short-Term Rental Turnover', 'Normal', false, 'Rarely', 'Light', []);
+    const withPets = calcHours(2, 1, 1000, 'Short-Term Rental Turnover', 'Normal', true,  'Rarely', 'Light', []);
+    expect(noPets.one).toBe(withPets.one);
+  });
+
+  it('ignores extras for STR', () => {
+    const noExtras   = calcHours(2, 1, 1000, 'Short-Term Rental Turnover', 'Normal', false, 'Rarely', 'Light', []);
+    const withExtras = calcHours(2, 1, 1000, 'Short-Term Rental Turnover', 'Normal', false, 'Rarely', 'Light', ['oven', 'basement', 'windows']);
+    expect(noExtras.one).toBe(withExtras.one);
+  });
+});
+
+// ── Rates & GST ───────────────────────────────────────────────────────────────
+
+describe('getRate — pricing table', () => {
+  it('Standard one-time = $40/hr', () => expect(getRate('Standard Cleaning', 'One-time')).toBe(40));
+  it('Standard monthly  = $35/hr', () => expect(getRate('Standard Cleaning', 'Monthly')).toBe(35));
+  it('Standard biweekly = $33/hr', () => expect(getRate('Standard Cleaning', 'Biweekly')).toBe(33));
+  it('Standard weekly   = $30/hr', () => expect(getRate('Standard Cleaning', 'Weekly')).toBe(30));
+  it('Deep one-time     = $40/hr', () => expect(getRate('Deep Cleaning', 'One-time')).toBe(40));
+  it('Move-Out          = $45/hr', () => expect(getRate('Move-Out/Move-In Cleaning', 'One-time')).toBe(45));
+  it('STR               = $50/hr', () => expect(getRate('Short-Term Rental Turnover', 'One-time')).toBe(50));
+  it('GST rate is 5%',              () => expect(GST).toBe(0.05));
+
+  it('FREQ_MULTIPLIER covers all four frequencies', () => {
+    expect(FREQ_MULTIPLIER['One-time']).toBe(1.00);
+    expect(FREQ_MULTIPLIER['Monthly']).toBe(0.95);
+    expect(FREQ_MULTIPLIER['Biweekly']).toBe(0.80);
+    expect(FREQ_MULTIPLIER['Weekly']).toBe(0.65);
+  });
+
+  it('Deep frequency falls back to One-time rate', () => {
+    expect(getRate('Deep Cleaning', 'Weekly')).toBe(40);
   });
 });
