@@ -57,6 +57,8 @@ const SQFT_PRESETS = [
   { label: '2,000–2,500', value: 2250 },
   { label: '2,500+',      value: 3000 },
 ];
+const snapSqft = (v: number) =>
+  SQFT_PRESETS.reduce((best, p) => Math.abs(p.value - v) < Math.abs(best.value - v) ? p : best).value;
 
 
 const EXTRAS = [
@@ -370,7 +372,7 @@ export function EstimatorWidget() {
   const [step,             setStep]            = useState(0);
   const [bedrooms,         setBedrooms]        = useState(prefill?.bedrooms      ?? 2);
   const [bathrooms,        setBathrooms]       = useState(prefill?.bathrooms     ?? 1);
-  const [sqft,             setSqft]            = useState(prefill?.sqft          ?? 750);
+  const [sqft,             setSqft]            = useState(prefill?.sqft != null ? snapSqft(prefill.sqft) : 750);
   const [cleaningType,     setCleaningType]    = useState<CleaningType>(prefill?.cleaningType   ?? 'Standard Cleaning');
   const [houseCondition,   setHouseCondition]  = useState<HouseCondition>(prefill?.houseCondition ?? 'Normal');
   const [pets,             setPets]            = useState(false);
