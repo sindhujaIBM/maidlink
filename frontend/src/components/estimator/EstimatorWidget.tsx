@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AlphaFeedbackForm } from './AlphaFeedbackForm';
 import { useNavigate } from 'react-router-dom';
 import { Spinner } from '../ui/Spinner';
@@ -71,7 +71,8 @@ const EXTRA_MINS: Record<number, string> = { 1: '60', 0.5: '30', 0.75: '45' };
 
 const MAX_PER_ROOM  = 5;
 const MIN_TOTAL     = 5;
-const MAX_TOTAL     = 10;
+const MAX_BEDROOMS  = 8;
+const MAX_BATHROOMS = 6;
 
 // ── Room list derived from form state — see frontend/src/lib/estimatorCalc.ts ──
 
@@ -453,10 +454,18 @@ export function EstimatorWidget() {
   // Derived values
   const { one, two } = calcHours(bedrooms, bathrooms, sqft, cleaningType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency);
   const isMoveOut     = cleaningType === 'Move-Out/Move-In Cleaning';
+  const maxTotal = useMemo(() => {
+    const safeRooms = buildRoomList(
+      Math.min(bedrooms, MAX_BEDROOMS),
+      Math.min(bathrooms, MAX_BATHROOMS),
+      extras, includeKitchen, includeLivingRoom,
+    );
+    return safeRooms.length * MAX_PER_ROOM;
+  }, [bedrooms, bathrooms, extras, includeKitchen, includeLivingRoom]);
+
   const allPhotos     = Object.values(roomPhotos).flat();
-  const totalPhotos   = allPhotos.length;
   const totalReady    = allPhotos.filter(p => p.s3Key !== null).length;
-  const canAnalyze    = totalReady >= MIN_TOTAL && totalReady <= MAX_TOTAL && !uploading;
+  const canAnalyze    = totalReady >= MIN_TOTAL && !uploading;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -477,7 +486,7 @@ export function EstimatorWidget() {
 
   function openFilePicker(roomName: string) {
     const roomCount = roomPhotos[roomName]?.length ?? 0;
-    if (roomCount >= MAX_PER_ROOM || totalPhotos >= MAX_TOTAL) return;
+    if (roomCount >= MAX_PER_ROOM) return;
     setActiveRoom(roomName);
     if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); }
   }
@@ -488,7 +497,7 @@ export function EstimatorWidget() {
     if (!files.length) return;
 
     const roomCount   = roomPhotos[activeRoom]?.length ?? 0;
-    const canAdd      = Math.min(MAX_PER_ROOM - roomCount, MAX_TOTAL - totalPhotos);
+    const canAdd      = MAX_PER_ROOM - roomCount;
     const validFiles  = files.filter(f => f.type.startsWith('image/')).slice(0, canAdd);
     if (!validFiles.length) return;
 
@@ -536,7 +545,7 @@ export function EstimatorWidget() {
 
   function openCamera(roomName: string) {
     const roomCount  = roomPhotos[roomName]?.length ?? 0;
-    const maxForRoom = Math.min(MAX_PER_ROOM - roomCount, MAX_TOTAL - totalPhotos);
+    const maxForRoom = MAX_PER_ROOM - roomCount;
     if (maxForRoom <= 0 || uploading) return;
     setCameraRoom(roomName);
     setCameraMaxCaptures(maxForRoom);
@@ -544,7 +553,7 @@ export function EstimatorWidget() {
 
   async function handleCameraCapture(roomName: string, file: File) {
     const roomCount = roomPhotos[roomName]?.length ?? 0;
-    if (roomCount >= MAX_PER_ROOM || totalPhotos >= MAX_TOTAL) return;
+    if (roomCount >= MAX_PER_ROOM) return;
 
     setUploadError(null);
     setUploading(true);
@@ -872,7 +881,7 @@ export function EstimatorWidget() {
               <div className="card bg-brand-50 border border-brand-200">
                 <p className="text-sm font-medium text-brand-800">Upload at least one photo per room</p>
                 <p className="text-xs text-brand-600 mt-1">
-                  Minimum {MIN_TOTAL} photos total · up to {MAX_PER_ROOM} per room · max {MAX_TOTAL} total · JPEG or PNG · 10 MB each
+                  Minimum {MIN_TOTAL} photos total · up to {MAX_PER_ROOM} per room · up to {maxTotal} total · JPEG or PNG · 10 MB each
                 </p>
               </div>
 
@@ -951,7 +960,7 @@ export function EstimatorWidget() {
                 {rooms.map(room => {
                   const photos   = roomPhotos[room] ?? [];
                   const ready    = photos.filter(p => p.s3Key !== null).length;
-                  const canAdd   = photos.length < MAX_PER_ROOM && totalPhotos < MAX_TOTAL;
+                  const canAdd   = photos.length < MAX_PER_ROOM;
 
                   return (
                     <div key={room} ref={el => { roomRefsMap.current[room] = el; }}
