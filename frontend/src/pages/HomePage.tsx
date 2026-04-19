@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,6 +23,17 @@ const C = {
 
 const serif = "'Fraunces', Georgia, serif";
 const sans  = "'Inter', system-ui, sans-serif";
+
+// ── Responsive hook ───────────────────────────────────────────
+function useIsMobile(bp = 768) {
+  const [mobile, setMobile] = useState(() => window.innerWidth < bp);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < bp);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, [bp]);
+  return mobile;
+}
 
 // ── SVG icon set ──────────────────────────────────────────────
 function IconArrow({ size = 16, color = 'currentColor' }) {
@@ -108,29 +119,32 @@ function IconQuote({ size = 28, color = 'currentColor' }) {
 
 // ── Nav ───────────────────────────────────────────────────────
 function NavBar({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{ borderBottom: `1px solid ${C.line}`, background: C.cream, position: 'sticky', top: 0, zIndex: 100 }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <Link to="/" style={{ textDecoration: 'none' }}><Wordmark size={28} /></Link>
-        <nav style={{ display: 'flex', gap: 24, fontSize: 14, fontWeight: 500, flexWrap: 'wrap', alignItems: 'center' }}>
-          <a href="#how"      style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>How it works</a>
-          <a href="#services" style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>Services</a>
-          <a href="#areas"    style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>Areas</a>
-          <a href="#reviews"  style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>Reviews</a>
-          <Link to="/become-a-maid" style={{ color: C.teal, textDecoration: 'none', fontWeight: 600 }}>Become a maid →</Link>
-        </nav>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {isAuthenticated ? (
-            <Link to="/dashboard" style={{ fontSize: 14, color: C.ink, textDecoration: 'none', fontWeight: 500 }}>Dashboard</Link>
-          ) : (
-            <a href={buildGoogleAuthUrl()} style={{ fontSize: 14, color: C.ink, textDecoration: 'none', fontWeight: 500 }}>Sign in</a>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '14px 16px' : '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <Link to="/" style={{ textDecoration: 'none' }}><Wordmark size={isMobile ? 22 : 28} /></Link>
+        {!isMobile && (
+          <nav style={{ display: 'flex', gap: 24, fontSize: 14, fontWeight: 500, flexWrap: 'wrap', alignItems: 'center' }}>
+            <a href="#how"      style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>How it works</a>
+            <a href="#services" style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>Services</a>
+            <a href="#areas"    style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>Areas</a>
+            <a href="#reviews"  style={{ color: C.ink, textDecoration: 'none', opacity: 0.85 }}>Reviews</a>
+            <Link to="/become-a-maid" style={{ color: C.teal, textDecoration: 'none', fontWeight: 600 }}>Become a maid →</Link>
+          </nav>
+        )}
+        <div style={{ display: 'flex', gap: isMobile ? 8 : 12, alignItems: 'center' }}>
+          {!isMobile && (
+            isAuthenticated
+              ? <Link to="/dashboard" style={{ fontSize: 14, color: C.ink, textDecoration: 'none', fontWeight: 500 }}>Dashboard</Link>
+              : <a href={buildGoogleAuthUrl()} style={{ fontSize: 14, color: C.ink, textDecoration: 'none', fontWeight: 500 }}>Sign in</a>
           )}
           <Link to="/estimate" style={{
-            background: C.teal, color: '#fff', padding: '10px 18px', borderRadius: 999,
-            fontSize: 14, fontWeight: 600, textDecoration: 'none',
+            background: C.teal, color: '#fff', padding: isMobile ? '9px 14px' : '10px 18px', borderRadius: 999,
+            fontSize: isMobile ? 13 : 14, fontWeight: 600, textDecoration: 'none',
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
-            Get a free estimate <IconArrow size={13} color="#fff" />
+            {isMobile ? 'Free estimate' : 'Get a free estimate'} <IconArrow size={13} color="#fff" />
           </Link>
         </div>
       </div>
@@ -153,6 +167,7 @@ const CONDITION_MAP: Record<string, HouseCondition> = {
 
 function EstimateForm() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [beds,      setBeds]      = useState(2);
   const [baths,     setBaths]     = useState(1);
   const [sqft,      setSqft]      = useState(1000);
@@ -195,7 +210,7 @@ function EstimateForm() {
   );
 
   return (
-    <div style={{ background: '#fff', borderRadius: 20, padding: 28, boxShadow: '0 20px 60px rgba(15,56,51,0.12), 0 1px 3px rgba(0,0,0,0.05)', border: `1px solid ${C.line}` }}>
+    <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? 20 : 28, boxShadow: '0 20px 60px rgba(15,56,51,0.12), 0 1px 3px rgba(0,0,0,0.05)', border: `1px solid ${C.line}` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: C.ink }}>Free estimate</div>
         <div style={{ fontSize: 11, padding: '4px 10px', background: `${C.gold}22`, color: C.teal, borderRadius: 999, fontWeight: 700, letterSpacing: 0.4 }}>~60 SEC</div>
@@ -219,7 +234,7 @@ function EstimateForm() {
 
       <div style={{ marginBottom: 22 }}>
         <FieldLabel>House condition</FieldLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 6 }}>
           <SegBtn active={condition === 'pristine'} onClick={() => setCondition('pristine')}>Pristine</SegBtn>
           <SegBtn active={condition === 'normal'}   onClick={() => setCondition('normal')}>Normal</SegBtn>
           <SegBtn active={condition === 'dirty'}    onClick={() => setCondition('dirty')}>Dirty</SegBtn>
@@ -268,20 +283,21 @@ function EstimateForm() {
 
 // ── Hero ──────────────────────────────────────────────────────
 function Hero() {
+  const isMobile = useIsMobile();
   return (
-    <section style={{ background: C.cream, maxWidth: 1280, margin: '0 auto', padding: '64px 24px 80px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.05fr) minmax(0,0.95fr)', gap: 56, alignItems: 'center' }}>
+    <section style={{ background: C.cream, maxWidth: 1280, margin: '0 auto', padding: isMobile ? '40px 16px 48px' : '64px 24px 80px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1.05fr) minmax(0,0.95fr)', gap: isMobile ? 36 : 56, alignItems: 'center' }}>
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: C.creamDeep, borderRadius: 999, fontSize: 13, fontWeight: 500, color: C.teal, marginBottom: 24 }}>
             <IconSparkle size={13} color={C.gold} /> Calgary's trusted home cleaning
           </div>
-          <h1 style={{ fontFamily: serif, fontSize: 'clamp(42px, 5vw, 68px)', lineHeight: 1.03, letterSpacing: -1.5, fontWeight: 500, margin: 0, marginBottom: 20, color: C.ink }}>
+          <h1 style={{ fontFamily: serif, fontSize: 'clamp(36px, 5vw, 68px)', lineHeight: 1.03, letterSpacing: -1.5, fontWeight: 500, margin: 0, marginBottom: 20, color: C.ink }}>
             Come home to a <em style={{ fontStyle: 'italic', color: C.teal }}>sparkling</em><br/>clean space.
           </h1>
-          <p style={{ fontSize: 18, lineHeight: 1.55, color: C.ink70, margin: 0, marginBottom: 32, maxWidth: 500 }}>
+          <p style={{ fontSize: isMobile ? 16 : 18, lineHeight: 1.55, color: C.ink70, margin: 0, marginBottom: 32, maxWidth: 500 }}>
             Busy Calgary professionals book trusted, admin-verified maids in 2 minutes — no sign-up, no surprises, no double-bookings. Ever.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 13, color: C.ink70, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, color: C.ink70, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IconCheck size={15} color={C.teal} /> No sign-up needed</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IconClock size={15} color={C.teal} /> 2-minute quote</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IconShield size={15} color={C.teal} /> Admin-verified maids</div>
@@ -313,7 +329,7 @@ function Hero() {
 function TrustStrip() {
   return (
     <div style={{ borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}`, background: C.creamDeep }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: 24 }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
         <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1.5, color: C.teal }}>Trusted by Calgary families</span>
         {[
           { value: '2,100+', label: 'homes cleaned' },
@@ -339,12 +355,13 @@ const HOW_STEPS = [
 ];
 
 function HowItWorks() {
+  const isMobile = useIsMobile();
   return (
-    <section id="how" style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 24px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.5fr)', gap: 72, alignItems: 'start' }}>
+    <section id="how" style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '60px 16px' : '88px 24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) minmax(0,1.5fr)', gap: isMobile ? 40 : 72, alignItems: 'start' }}>
         <div>
           <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.teal, fontWeight: 600, marginBottom: 14 }}>How it works</div>
-          <h2 style={{ fontFamily: serif, fontSize: 'clamp(32px,4vw,48px)', lineHeight: 1.06, letterSpacing: -1, fontWeight: 500, margin: 0, marginBottom: 18, color: C.ink }}>
+          <h2 style={{ fontFamily: serif, fontSize: 'clamp(28px,4vw,48px)', lineHeight: 1.06, letterSpacing: -1, fontWeight: 500, margin: 0, marginBottom: 18, color: C.ink }}>
             From overwhelmed<br/>to <em style={{ color: C.teal }}>at peace</em> in four steps.
           </h2>
           <p style={{ fontSize: 16, lineHeight: 1.6, color: C.ink70, marginBottom: 28 }}>
@@ -354,9 +371,9 @@ function HowItWorks() {
             Start my estimate <IconArrow size={13} color="#fff" />
           </Link>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 18 }}>
           {HOW_STEPS.map((s, i) => (
-            <div key={s.n} style={{ background: i % 2 === 0 ? '#fff' : C.creamDeep, border: `1px solid ${C.line}`, borderRadius: 16, padding: 24, transform: i === 1 || i === 3 ? 'translateY(24px)' : 'none' }}>
+            <div key={s.n} style={{ background: i % 2 === 0 ? '#fff' : C.creamDeep, border: `1px solid ${C.line}`, borderRadius: 16, padding: 24, transform: !isMobile && (i === 1 || i === 3) ? 'translateY(24px)' : 'none' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div style={{ width: 40, height: 40, borderRadius: 12, background: C.teal, display: 'grid', placeItems: 'center' }}>{s.icon}</div>
                 <div style={{ fontFamily: serif, fontSize: 24, color: C.gold, fontWeight: 500 }}>{s.n}</div>
@@ -379,10 +396,11 @@ const SERVICES = [
 ];
 
 function Services() {
+  const isMobile = useIsMobile();
   return (
-    <section id="services" style={{ background: C.creamDeep, padding: '88px 0' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 44, flexWrap: 'wrap', gap: 16 }}>
+    <section id="services" style={{ background: C.creamDeep, padding: isMobile ? '60px 0' : '88px 0' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 36, flexWrap: 'wrap', gap: 16 }}>
           <div>
             <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.teal, fontWeight: 600, marginBottom: 10 }}>Services</div>
             <h2 style={{ fontFamily: serif, fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1, fontWeight: 500, letterSpacing: -0.8, margin: 0, color: C.ink }}>
@@ -393,7 +411,7 @@ function Services() {
             Price all services <IconArrow size={13} color={C.teal} />
           </Link>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 20 }}>
           {SERVICES.map(s => (
             <div key={s.t} style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', border: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column' }}>
               <div style={{ height: 160, background: s.bg, position: 'relative', overflow: 'hidden' }}>
@@ -425,20 +443,22 @@ const REASONS = [
 ];
 
 function Reasons() {
+  const isMobile = useIsMobile();
   return (
-    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '100px 24px' }}>
-      <div style={{ textAlign: 'center' as const, maxWidth: 620, margin: '0 auto 56px' }}>
+    <section style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '60px 16px' : '100px 24px' }}>
+      <div style={{ textAlign: 'center' as const, maxWidth: 620, margin: '0 auto 48px' }}>
         <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.teal, fontWeight: 600, marginBottom: 12 }}>Why MaidLink</div>
         <h2 style={{ fontFamily: serif, fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.06, fontWeight: 500, letterSpacing: -1, margin: 0, color: C.ink }}>
           The home-cleaning platform<br/>Calgary actually deserves.
         </h2>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: `1px solid ${C.line}`, borderRadius: 20, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', border: `1px solid ${C.line}`, borderRadius: 20, overflow: 'hidden' }}>
         {REASONS.map((r, i) => (
           <div key={r.n} style={{
-            padding: 36, background: i % 2 === 0 ? C.cream : '#fff',
-            borderRight:  i % 2 === 0 ? `1px solid ${C.line}` : 'none',
-            borderBottom: i < 2       ? `1px solid ${C.line}` : 'none',
+            padding: isMobile ? 24 : 36,
+            background: i % 2 === 0 ? C.cream : '#fff',
+            borderRight:  !isMobile && i % 2 === 0 ? `1px solid ${C.line}` : 'none',
+            borderBottom: isMobile ? (i < REASONS.length - 1 ? `1px solid ${C.line}` : 'none') : (i < 2 ? `1px solid ${C.line}` : 'none'),
           }}>
             <div style={{ fontFamily: serif, fontSize: 14, color: C.gold, fontWeight: 500, marginBottom: 10 }}>{r.n}</div>
             <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, marginBottom: 8, letterSpacing: -0.4, color: C.ink }}>{r.t}</div>
@@ -458,10 +478,11 @@ const REVIEWS = [
 ];
 
 function Reviews() {
+  const isMobile = useIsMobile();
   return (
-    <section id="reviews" style={{ background: C.teal, color: '#fff', padding: '88px 0' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 48, flexWrap: 'wrap', gap: 20 }}>
+    <section id="reviews" style={{ background: C.teal, color: '#fff', padding: isMobile ? '60px 0' : '88px 0' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 40, flexWrap: 'wrap', gap: 20 }}>
           <div>
             <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.gold, fontWeight: 600, marginBottom: 10 }}>What Calgary says</div>
             <h2 style={{ fontFamily: serif, fontSize: 'clamp(26px,4vw,42px)', lineHeight: 1.06, fontWeight: 500, letterSpacing: -0.8, margin: 0 }}>
@@ -475,7 +496,7 @@ function Reviews() {
             <div style={{ fontSize: 13, opacity: 0.8 }}>Based on 1,847 verified reviews</div>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 18 }}>
           {REVIEWS.map(r => (
             <div key={r.name} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, padding: 26 }}>
               <IconQuote size={28} color={C.gold} />
@@ -501,9 +522,10 @@ function Reviews() {
 const HOODS = ['Beltline', 'Inglewood', 'Bridgeland', 'Kensington', 'Mission', 'Hillhurst', 'Altadore', 'Marda Loop', 'Evanston', 'Tuscany', 'Aspen Woods', 'McKenzie Lake', 'Auburn Bay', 'Mahogany', 'Seton', 'Cranston', 'Panorama Hills', 'Nolan Hill', 'Sage Hill', 'Royal Oak', '+ 40 more areas'];
 
 function Areas() {
+  const isMobile = useIsMobile();
   return (
-    <section id="areas" style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 24px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 72, alignItems: 'center' }}>
+    <section id="areas" style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '60px 16px' : '88px 24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) minmax(0,1fr)', gap: isMobile ? 36 : 72, alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.teal, fontWeight: 600, marginBottom: 12 }}>Calgary-only service area</div>
           <h2 style={{ fontFamily: serif, fontSize: 'clamp(26px,4vw,42px)', lineHeight: 1.06, fontWeight: 500, letterSpacing: -0.8, margin: 0, marginBottom: 18, color: C.ink }}>
@@ -523,7 +545,7 @@ function Areas() {
             ))}
           </div>
         </div>
-        <div style={{ height: 400, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}` }}>
+        <div style={{ height: isMobile ? 280 : 400, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}` }}>
           <iframe
             src="https://www.google.com/maps/d/u/0/embed?mid=1P24AEoh-xHRLPYONVb5vRql8CW5gp0o&ehbc=2E312F&noprof=1&ll=51.0447,-114.0719&z=11"
             width="100%" height="100%"
@@ -547,19 +569,28 @@ const MAID_BENEFITS = [
 ];
 
 function BecomeAMaid() {
+  const isMobile = useIsMobile();
   return (
-    <section style={{ background: C.creamDeep, padding: '88px 0' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 72, alignItems: 'center' }}>
+    <section style={{ background: C.creamDeep, padding: isMobile ? '60px 0' : '88px 0' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) minmax(0,1fr)', gap: isMobile ? 36 : 72, alignItems: 'center' }}>
         <div style={{ position: 'relative' as const }}>
-          <div style={{ height: 460, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}` }}>
+          <div style={{ height: isMobile ? 300 : 460, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}` }}>
             <img src="/maid-portrait.jpg" alt="MaidLink cleaner at work" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 40%', display: 'block' }} />
           </div>
-          <div style={{ position: 'absolute' as const, bottom: 24, right: -20, background: '#fff', padding: '16px 20px', borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', maxWidth: 200 }}>
-            <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: C.teal }}>$28–$38<span style={{ fontSize: 12, color: C.ink70, fontWeight: 400 }}>/hr</span></div>
-            <div style={{ fontSize: 11, color: C.ink70, marginTop: 2 }}>Average maid earnings on MaidLink</div>
-          </div>
+          {!isMobile && (
+            <div style={{ position: 'absolute' as const, bottom: 24, right: -20, background: '#fff', padding: '16px 20px', borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', maxWidth: 200 }}>
+              <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: C.teal }}>$28–$38<span style={{ fontSize: 12, color: C.ink70, fontWeight: 400 }}>/hr</span></div>
+              <div style={{ fontSize: 11, color: C.ink70, marginTop: 2 }}>Average maid earnings on MaidLink</div>
+            </div>
+          )}
         </div>
         <div>
+          {isMobile && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#fff', padding: '12px 16px', borderRadius: 12, marginBottom: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+              <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 600, color: C.teal }}>$28–$38<span style={{ fontSize: 11, color: C.ink70, fontWeight: 400 }}>/hr</span></div>
+              <div style={{ fontSize: 11, color: C.ink70 }}>Average maid earnings</div>
+            </div>
+          )}
           <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.gold, fontWeight: 600, marginBottom: 12 }}>Become a maid</div>
           <h2 style={{ fontFamily: serif, fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.06, fontWeight: 500, letterSpacing: -1, margin: 0, marginBottom: 18, color: C.ink }}>
             Set your own hours.<br/>Keep <em style={{ color: C.teal }}>what you earn</em>.
@@ -609,10 +640,11 @@ const FAQS = [
 ];
 
 function Faq() {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(0);
   return (
-    <section style={{ maxWidth: 1000, margin: '0 auto', padding: '100px 24px' }}>
-      <div style={{ textAlign: 'center' as const, marginBottom: 52 }}>
+    <section style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '60px 16px' : '100px 24px' }}>
+      <div style={{ textAlign: 'center' as const, marginBottom: 44 }}>
         <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.teal, fontWeight: 600, marginBottom: 10 }}>FAQ</div>
         <h2 style={{ fontFamily: serif, fontSize: 'clamp(26px,4vw,42px)', lineHeight: 1.06, fontWeight: 500, letterSpacing: -0.8, margin: 0, color: C.ink }}>
           Everything you wanted to ask.
@@ -621,12 +653,12 @@ function Faq() {
       <div style={{ borderTop: `1px solid ${C.line}` }}>
         {FAQS.map((f, i) => (
           <div key={i} style={{ borderBottom: `1px solid ${C.line}` }}>
-            <button onClick={() => setOpen(open === i ? -1 : i)} style={{ width: '100%', padding: '22px 0', background: 'transparent', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' as const, cursor: 'pointer', fontFamily: sans, color: C.ink, gap: 16 }}>
-              <span style={{ fontFamily: serif, fontSize: 18, fontWeight: 500, letterSpacing: -0.2 }}>{f.q}</span>
+            <button onClick={() => setOpen(open === i ? -1 : i)} style={{ width: '100%', padding: '20px 0', background: 'transparent', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' as const, cursor: 'pointer', fontFamily: sans, color: C.ink, gap: 16 }}>
+              <span style={{ fontFamily: serif, fontSize: isMobile ? 16 : 18, fontWeight: 500, letterSpacing: -0.2 }}>{f.q}</span>
               <span style={{ width: 30, height: 30, borderRadius: '50%', background: open === i ? C.teal : C.creamDeep, color: open === i ? '#fff' : C.ink, display: 'grid', placeItems: 'center', fontSize: 18, flexShrink: 0 }}>{open === i ? '−' : '+'}</span>
             </button>
             {open === i && (
-              <div style={{ paddingBottom: 22, fontSize: 15, color: C.ink70, lineHeight: 1.65, maxWidth: 740 }}>{f.a}</div>
+              <div style={{ paddingBottom: 20, fontSize: 15, color: C.ink70, lineHeight: 1.65, maxWidth: 740 }}>{f.a}</div>
             )}
           </div>
         ))}
@@ -637,15 +669,16 @@ function Faq() {
 
 // ── Final CTA ─────────────────────────────────────────────────
 function FinalCta() {
+  const isMobile = useIsMobile();
   return (
-    <section style={{ padding: '0 24px 88px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', borderRadius: 24, padding: '72px 48px', background: `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDeep} 100%)`, color: '#fff', position: 'relative' as const, overflow: 'hidden' }}>
+    <section style={{ padding: isMobile ? '0 16px 60px' : '0 24px 88px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', borderRadius: 24, padding: isMobile ? '48px 24px' : '72px 48px', background: `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDeep} 100%)`, color: '#fff', position: 'relative' as const, overflow: 'hidden' }}>
         <div style={{ position: 'absolute' as const, top: -50, right: -50, width: 240, height: 240, borderRadius: '50%', background: C.gold, opacity: 0.13 }} />
         <div style={{ position: 'absolute' as const, bottom: -70, left: -30, width: 180, height: 180, borderRadius: '50%', background: C.gold, opacity: 0.07 }} />
-        <div style={{ position: 'relative' as const, display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)', gap: 44, alignItems: 'center' }}>
+        <div style={{ position: 'relative' as const, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1.2fr) minmax(0,1fr)', gap: isMobile ? 32 : 44, alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 12, textTransform: 'uppercase' as const, letterSpacing: 2, color: C.gold, fontWeight: 600, marginBottom: 14 }}>Ready when you are</div>
-            <h2 style={{ fontFamily: serif, fontSize: 'clamp(32px,5vw,58px)', lineHeight: 1.03, fontWeight: 500, letterSpacing: -1.2, margin: 0, marginBottom: 16 }}>
+            <h2 style={{ fontFamily: serif, fontSize: 'clamp(28px,5vw,58px)', lineHeight: 1.03, fontWeight: 500, letterSpacing: -1.2, margin: 0, marginBottom: 16 }}>
               Your clean home is <em style={{ color: C.gold }}>2 minutes</em> away.
             </h2>
             <p style={{ fontSize: 16, opacity: 0.88, lineHeight: 1.55, maxWidth: 480, margin: 0 }}>
@@ -677,11 +710,12 @@ const FOOTER_COLS = [
 ];
 
 function Footer() {
+  const isMobile = useIsMobile();
   return (
-    <footer style={{ background: C.tealDeep, color: '#E6D9BE', padding: '64px 24px 28px' }}>
+    <footer style={{ background: C.tealDeep, color: '#E6D9BE', padding: isMobile ? '48px 16px 24px' : '64px 24px 28px' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1fr', gap: 36, marginBottom: 48 }}>
-          <div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1.4fr 1fr 1fr 1fr 1fr', gap: isMobile ? 28 : 36, marginBottom: 40 }}>
+          <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}>
             <Wordmark size={26} />
             <p style={{ fontSize: 13, opacity: 0.75, lineHeight: 1.65, marginTop: 18, maxWidth: 280 }}>
               Calgary's trusted home cleaning marketplace. Book verified local maids in 2 minutes.

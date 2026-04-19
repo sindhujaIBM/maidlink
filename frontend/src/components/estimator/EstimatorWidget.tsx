@@ -657,7 +657,7 @@ export function EstimatorWidget() {
 
             <div className="border-t border-gray-100 pt-4">
               <label className="label mb-2">Home Size</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {SQFT_PRESETS.map(p => (
                   <button key={p.value} type="button" onClick={() => setSqft(p.value)}
                     className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
