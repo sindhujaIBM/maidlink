@@ -65,6 +65,9 @@ _Last updated: 2026-04-10_
 - ✅ **JWT refresh tokens** — 30-day rotating refresh tokens stored in DB; single-use rotation; silent refresh on 401; auto-refresh on app load if access token expired; logout clears refresh token
 - ✅ **Booking soft deletes** — Cancellations record `cancelled_at`, `cancelled_by`, `cancellation_reason` instead of hard-deleting
 
+### Landing Page
+- ✅ **Landing page redesign (Direction A — Warm & Homey)** — Full 11-section page: sticky nav, split hero with live estimate form, trust strip, How it works, Services, Reasons, Reviews, Areas, Become a Maid band, FAQ accordion, final CTA, dark-teal footer with sitemap; Fraunces serif headings; estimate form wired to `calcHours()`
+
 ### SEO & Analytics
 - ✅ **Per-page meta tags** — `react-helmet-async` sets unique `<title>`, `<meta description>`, Open Graph, and canonical URL on all 4 public pages (`/`, `/maids`, `/estimate`, `/become-a-maid`)
 - ✅ **Local Business JSON-LD** — `HomeAndConstructionBusiness` structured data on homepage; includes `areaServed: Calgary`, service types, address region
@@ -108,6 +111,9 @@ Save address and favourite maids. Auto-populate address on booking form. "Favour
 ---
 
 ### P3 — Operational Maturity
+
+#### Privacy Policy, Terms & Conditions, Cookie Notice
+Required for PIPEDA / Alberta PIPA compliance. Disclose: Google OAuth, AWS (S3/Lambda/Aurora — ca-west-1), GA4, Amazon Bedrock (photos). Cookie notice needed for GA4 (CASL). Footer links already stubbed as `href="#"`.
 
 #### Admin: Dispute Resolution
 Dispute flag on bookings; admin can manually complete or refund. Needed once payments exist.

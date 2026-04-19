@@ -11,9 +11,13 @@ export interface CalcResult {
 /**
  * Calculates estimated cleaning hours for 1 and 2 cleaners.
  *
- * Base: bedrooms × 0.6 + bathrooms × 0.9 + sqft / 500 + 0.25 (setup buffer)
+ * Base: bedrooms × 0.65 + bathrooms × 1.0 + residualSqft / 650
+ *   residualSqft = max(0, sqft − bedrooms×175 − bathrooms×65)
+ *   (subtracts avg room footprints so sqft only captures common areas)
+ *
  * Extras (basement, laundry, garage) added before cleaning-type multiplier.
  * Oven, refrigerator, windows added after multiplier.
+ * Cooking: only adds +0.75h when both Frequently AND Heavy (avoids double-count with condition).
  * Rounding: ≤ 4h → ceil to nearest 0.5; > 4h → ceil to nearest 1.
  */
 export function calcHours(
@@ -28,7 +32,9 @@ export function calcHours(
   extras: string[],
 ): CalcResult {
   const isMoveOut = cleaningType === 'Move-Out/Move-In Cleaning';
-  let base = bedrooms * 0.6 + bathrooms * 0.9 + sqft / 500 + 0.25;
+
+  const residualSqft = Math.max(0, sqft - bedrooms * 175 - bathrooms * 65);
+  let base = bedrooms * 0.65 + bathrooms * 1.0 + residualSqft / 650;
 
   // Location extras: added before cleaning-type multiplier, ignored for move-out
   if (!isMoveOut) {
@@ -38,19 +44,20 @@ export function calcHours(
   }
 
   // Cleaning type multipliers
-  if (cleaningType === 'Deep Cleaning') base *= 1.5;
-  if (isMoveOut)                        base *= 2;
+  if (cleaningType === 'Deep Cleaning') base *= 1.75;
+  if (isMoveOut)                        base *= 2.25;
 
   // Condition multipliers
-  if (houseCondition === 'Pristine')         base *= 0.85;
+  if (houseCondition === 'Pristine')         base *= 0.90;
   // 'Lightly Used' and 'Normal' → ×1.0 (no change)
-  if (houseCondition === 'Moderately Dirty') base *= 1.25;
-  if (houseCondition === 'Heavily Soiled')   base *= 1.5;
+  if (houseCondition === 'Moderately Dirty') base *= 1.30;
+  if (houseCondition === 'Heavily Soiled')   base *= 1.75;
 
   // Flat additions (after multipliers)
-  if (pets)                         base += 0.5;
-  if (cookingFreq === 'Frequently') base += 1;
-  if (cookingStyle === 'Heavy')     base += 1;
+  if (pets) base += 0.75;
+  // Only add cooking overhead when both signals are at maximum — avoids
+  // double-counting the kitchen-condition effect already captured by houseCondition
+  if (cookingFreq === 'Frequently' && cookingStyle === 'Heavy') base += 0.75;
 
   // Appliance/feature extras: added after multipliers, ignored for move-out
   if (!isMoveOut) {
@@ -59,9 +66,8 @@ export function calcHours(
     if (extras.includes('windows'))      base += 1;
   }
 
-  const BUFFER = 0.5; // setup + pack-down time
   const round = (n: number) => n <= 4 ? Math.ceil(n * 2) / 2 : Math.ceil(n);
-  return { one: round(base + BUFFER), two: round((base + BUFFER) / 2) };
+  return { one: round(base), two: round(base / 2) };
 }
 
 /**

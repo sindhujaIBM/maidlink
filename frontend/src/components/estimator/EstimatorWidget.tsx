@@ -26,8 +26,6 @@ import {
 
 const CLEANING_TYPES: CleaningType[]    = ['Standard Cleaning', 'Deep Cleaning', 'Move-Out/Move-In Cleaning'];
 const HOUSE_CONDITIONS: HouseCondition[]= ['Pristine', 'Lightly Used', 'Normal', 'Moderately Dirty', 'Heavily Soiled'];
-const COOKING_FREQS: CookingFreq[]      = ['Rarely', 'Occasionally', 'Frequently'];
-const COOKING_STYLES: CookingStyle[]    = ['Light', 'Moderate', 'Heavy'];
 
 const EXTRAS = [
   { id: 'oven',         label: 'Inside Oven',      hours: 1    },
@@ -637,7 +635,7 @@ export function EstimatorWidget() {
             <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
               <div>
                 <p className="label">Pets</p>
-                <p className="text-xs text-gray-400 mt-0.5">Adds 30 min for pet hair</p>
+                <p className="text-xs text-gray-400 mt-0.5">Adds 45 min for pet hair</p>
               </div>
               <button type="button" onClick={() => setPets(p => !p)}
                 className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
@@ -647,9 +645,24 @@ export function EstimatorWidget() {
               </button>
             </div>
 
-            <div className="border-t border-gray-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <ChipGroup label="Cooking Frequency" options={COOKING_FREQS} value={cookingFreq} onChange={setCookingFreq} />
-              <ChipGroup label="Cooking Style"     options={COOKING_STYLES} value={cookingStyle} onChange={setCookingStyle} />
+            <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
+              <div>
+                <p className="label">Heavy cooking kitchen</p>
+                <p className="text-xs text-gray-400 mt-0.5">Cooks frequently with heavy grease — adds 45 min</p>
+              </div>
+              <button type="button"
+                onClick={() => {
+                  const isHeavy = cookingFreq === 'Frequently' && cookingStyle === 'Heavy';
+                  setCookingFreq(isHeavy ? 'Occasionally' : 'Frequently');
+                  setCookingStyle(isHeavy ? 'Moderate'    : 'Heavy');
+                }}
+                className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                  cookingFreq === 'Frequently' && cookingStyle === 'Heavy'
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                }`}>
+                {cookingFreq === 'Frequently' && cookingStyle === 'Heavy' ? 'Yes' : 'No'}
+              </button>
             </div>
           </div>
 
