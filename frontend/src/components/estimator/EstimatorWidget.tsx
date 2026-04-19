@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AlphaFeedbackForm } from './AlphaFeedbackForm';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Spinner } from '../ui/Spinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../../api/auth';
@@ -361,14 +361,18 @@ const PRIORITY_CLS: Record<string, string> = {
 export function EstimatorWidget() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { state: prefill } = useLocation() as { state: null | {
+    bedrooms?: number; bathrooms?: number; sqft?: number;
+    cleaningType?: CleaningType; houseCondition?: HouseCondition;
+  }};
 
   // Step 0 — form state
   const [step,             setStep]            = useState(0);
-  const [bedrooms,         setBedrooms]        = useState(2);
-  const [bathrooms,        setBathrooms]       = useState(1);
-  const [sqft,             setSqft]            = useState(750);
-  const [cleaningType,     setCleaningType]    = useState<CleaningType>('Standard Cleaning');
-  const [houseCondition,   setHouseCondition]  = useState<HouseCondition>('Normal');
+  const [bedrooms,         setBedrooms]        = useState(prefill?.bedrooms      ?? 2);
+  const [bathrooms,        setBathrooms]       = useState(prefill?.bathrooms     ?? 1);
+  const [sqft,             setSqft]            = useState(prefill?.sqft          ?? 750);
+  const [cleaningType,     setCleaningType]    = useState<CleaningType>(prefill?.cleaningType   ?? 'Standard Cleaning');
+  const [houseCondition,   setHouseCondition]  = useState<HouseCondition>(prefill?.houseCondition ?? 'Normal');
   const [pets,             setPets]            = useState(false);
   const [cookingFreq,      setCookingFreq]     = useState<CookingFreq>('Occasionally');
   const [cookingStyle,     setCookingStyle]    = useState<CookingStyle>('Moderate');

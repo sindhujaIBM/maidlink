@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
@@ -168,6 +168,7 @@ const CONDITION_MAP: Record<string, HouseCondition> = {
 };
 
 function EstimateForm() {
+  const navigate = useNavigate();
   const [beds,      setBeds]      = useState(2);
   const [baths,     setBaths]     = useState(1);
   const [sqft,      setSqft]      = useState(1000);
@@ -257,13 +258,23 @@ function EstimateForm() {
         </div>
       </div>
 
-      <Link to="/estimate" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        padding: '15px 20px', borderRadius: 12, background: C.teal,
-        color: '#fff', fontSize: 15, fontWeight: 600, textDecoration: 'none',
-      }}>
+      <button
+        onClick={() => navigate('/estimate', { state: {
+          bedrooms:       beds,
+          bathrooms:      baths,
+          sqft,
+          cleaningType:   CLEAN_TYPE_MAP[cleanType],
+          houseCondition: CONDITION_MAP[condition],
+        }})}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '15px 20px', borderRadius: 12, background: C.teal,
+          color: '#fff', fontSize: 15, fontWeight: 600, border: 'none', cursor: 'pointer',
+          width: '100%', fontFamily: sans,
+        }}
+      >
         Continue &amp; refine with photos <IconArrow size={15} color="#fff" />
-      </Link>
+      </button>
       <div style={{ fontSize: 11, color: C.ink70, textAlign: 'center' as const, marginTop: 10 }}>
         No card required · free cancellation up to 24h
       </div>
@@ -378,9 +389,9 @@ function HowItWorks() {
 
 // ── Services ──────────────────────────────────────────────────
 const SERVICES = [
-  { t: 'Standard cleaning',  d: 'Recurring weekly, biweekly, or monthly. Your go-to maintenance clean for a consistently tidy home.', p: 'from $145', badge: 'Most booked', bg: '#E7F0EC' },
-  { t: 'Deep cleaning',      d: 'Baseboards, inside appliances, vents, grout — the whole nine yards when your home needs a reset.', p: 'from $240', bg: C.creamDeep },
-  { t: 'Move-in / Move-out', d: 'Empty-home deep clean so you get the damage deposit back and hand off a spotless space.', p: 'from $280', bg: '#EFE7D4' },
+  { t: 'Standard cleaning',  d: 'Recurring weekly, biweekly, or monthly. Your go-to maintenance clean for a consistently tidy home.', p: 'from $135', badge: 'Most booked', bg: '#E7F0EC' },
+  { t: 'Deep cleaning',      d: 'Baseboards, inside appliances, vents, grout — the whole nine yards when your home needs a reset.', p: 'from $200', bg: C.creamDeep },
+  { t: 'Move-in / Move-out', d: 'Empty-home deep clean so you get the damage deposit back and hand off a spotless space.', p: 'from $270', bg: '#EFE7D4' },
 ];
 
 function Services() {
