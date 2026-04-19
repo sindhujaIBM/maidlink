@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Layout } from '../components/layout/Layout';
 import { EstimatorWidget } from '../components/estimator/EstimatorWidget';
 
 export function EstimatorPage() {
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   return (
     <Layout>
       <Helmet>

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
 import { calcHours } from '../lib/estimatorCalc';
 import type { CleaningType, HouseCondition } from '../lib/estimatorCalc';
+import { Wordmark } from '../components/layout/Wordmark';
 
 // ── Brand tokens ──────────────────────────────────────────────
 const C = {
@@ -102,23 +103,6 @@ function IconQuote({ size = 28, color = 'currentColor' }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
       <path d="M7 7h3v4c0 3-2 5-5 5v-2c1.5 0 2.5-1 2.5-2.5H6V7zm8 0h3v4c0 3-2 5-5 5v-2c1.5 0 2.5-1 2.5-2.5H14V7z"/>
     </svg>
-  );
-}
-
-// ── Logo wordmark ─────────────────────────────────────────────
-function Wordmark({ size = 28 }: { size?: number }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <svg width={size} height={size * 56 / 48} viewBox="0 0 48 56" fill="none">
-        <path d="M4 22L24 6L44 22L44 50L4 50Z" stroke={C.teal} strokeWidth="3.2" fill="none" strokeLinejoin="round" strokeLinecap="round"/>
-        <path d="M14 24L24 14L34 24Z" fill={C.gold}/>
-        <path d="M14 44L14 28L18 28L24 36L30 28L34 28L34 44" stroke={C.teal} strokeWidth="3.2" fill="none" strokeLinejoin="round" strokeLinecap="round"/>
-      </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-        <span style={{ fontFamily: serif, fontWeight: 700, fontSize: size * 0.78, letterSpacing: 0.5, color: C.teal }}>MAIDLINK</span>
-        <span style={{ fontFamily: sans, fontWeight: 500, fontSize: size * 0.28, letterSpacing: 2, color: C.teal, opacity: 0.65, marginTop: 2 }}>FOR A CLEANER SPACE</span>
-      </div>
-    </div>
   );
 }
 
@@ -389,9 +373,9 @@ function HowItWorks() {
 
 // ── Services ──────────────────────────────────────────────────
 const SERVICES = [
-  { t: 'Standard cleaning',  d: 'Recurring weekly, biweekly, or monthly. Your go-to maintenance clean for a consistently tidy home.', p: 'from $135', badge: 'Most booked', bg: '#E7F0EC' },
-  { t: 'Deep cleaning',      d: 'Baseboards, inside appliances, vents, grout — the whole nine yards when your home needs a reset.', p: 'from $200', bg: C.creamDeep },
-  { t: 'Move-in / Move-out', d: 'Empty-home deep clean so you get the damage deposit back and hand off a spotless space.', p: 'from $270', bg: '#EFE7D4' },
+  { t: 'Standard cleaning',  d: 'Recurring weekly, biweekly, or monthly. Your go-to maintenance clean for a consistently tidy home.', p: 'from $135', badge: 'Most booked', bg: '#E7F0EC', img: '/service-standard.jpg' },
+  { t: 'Deep cleaning',      d: 'Baseboards, inside appliances, vents, grout — the whole nine yards when your home needs a reset.', p: 'from $200', bg: C.creamDeep, img: '/service-deep.jpg' },
+  { t: 'Move-in / Move-out', d: 'Empty-home deep clean so you get the damage deposit back and hand off a spotless space.', p: 'from $270', bg: '#EFE7D4', img: '/service-moveout.jpg' },
 ];
 
 function Services() {
@@ -412,8 +396,8 @@ function Services() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
           {SERVICES.map(s => (
             <div key={s.t} style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', border: `1px solid ${C.line}`, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ height: 160, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 10, letterSpacing: 2, color: C.ink50, opacity: 0.6 }}>{s.t.toUpperCase()}</span>
+              <div style={{ height: 160, background: s.bg, position: 'relative', overflow: 'hidden' }}>
+                <img src={s.img} alt={s.t} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 {s.badge && <div style={{ position: 'absolute', top: 12, left: 12, background: C.gold, color: C.ink, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>{s.badge}</div>}
               </div>
               <div style={{ padding: 22, flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -539,8 +523,15 @@ function Areas() {
             ))}
           </div>
         </div>
-        <div style={{ height: 400, borderRadius: 20, background: C.creamDeep, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
-          <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, letterSpacing: 2, color: C.ink50, opacity: 0.6 }}>CALGARY SERVICE MAP</span>
+        <div style={{ height: 400, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}` }}>
+          <iframe
+            src="https://www.google.com/maps/d/u/0/embed?mid=1P24AEoh-xHRLPYONVb5vRql8CW5gp0o&ehbc=2E312F&noprof=1&ll=51.0447,-114.0719&z=11"
+            width="100%" height="100%"
+            style={{ border: 0, display: 'block' }}
+            allowFullScreen
+            loading="lazy"
+            title="MaidLink Calgary service areas"
+          />
         </div>
       </div>
     </section>
@@ -560,8 +551,8 @@ function BecomeAMaid() {
     <section style={{ background: C.creamDeep, padding: '88px 0' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 72, alignItems: 'center' }}>
         <div style={{ position: 'relative' as const }}>
-          <div style={{ height: 460, borderRadius: 20, background: '#EFE7D4', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
-            <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, letterSpacing: 2, color: C.ink50, opacity: 0.6 }}>MAID AT WORK — PORTRAIT</span>
+          <div style={{ height: 460, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}` }}>
+            <img src="/maid-portrait.jpg" alt="MaidLink cleaner at work" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 40%', display: 'block' }} />
           </div>
           <div style={{ position: 'absolute' as const, bottom: 24, right: -20, background: '#fff', padding: '16px 20px', borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', maxWidth: 200 }}>
             <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: C.teal }}>$28–$38<span style={{ fontSize: 12, color: C.ink70, fontWeight: 400 }}>/hr</span></div>

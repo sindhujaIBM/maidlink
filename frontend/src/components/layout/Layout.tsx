@@ -10,7 +10,7 @@ const MARQUEE_TEXT = '🚧 MaidLink is currently in private beta — live bookin
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f2f5f4' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#FBF7EE' }}>
       <div className="bg-amber-400 text-amber-900 text-sm font-medium py-2 overflow-hidden whitespace-nowrap">
         <div className="inline-block animate-marquee">
           {MARQUEE_TEXT.repeat(6)}

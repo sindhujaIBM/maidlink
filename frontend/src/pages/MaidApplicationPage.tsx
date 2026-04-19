@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { submitMaidApplication } from '../api/maidApplications';
 import {
@@ -12,6 +12,7 @@ const LANGUAGES = ['English', 'French', 'Punjabi', 'Hindi', 'Tagalog', 'Mandarin
 const REFERRAL_OPTIONS = ['Google', 'Facebook', 'Instagram', 'LinkedIn', 'Friend/Family', 'Flyer', 'Other'];
 
 export function MaidApplicationPage() {
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   // Personal
   const [fullName, setFullName]         = useState('');
   const [email, setEmail]               = useState('');
