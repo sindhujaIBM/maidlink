@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
@@ -124,7 +124,6 @@ function Wordmark({ size = 28 }: { size?: number }) {
 
 // ── Nav ───────────────────────────────────────────────────────
 function NavBar({ isAuthenticated }: { isAuthenticated: boolean }) {
-  const navigate = useNavigate();
   return (
     <div style={{ borderBottom: `1px solid ${C.line}`, background: C.cream, position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
