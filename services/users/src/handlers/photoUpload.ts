@@ -13,4 +13,4 @@ import { getPhotoUploadUrl } from '../lib/s3';
 export const handler = withAuth(async (_event: APIGatewayProxyEvent, auth) => {
   const { uploadUrl, s3Key } = await getPhotoUploadUrl(auth.userId);
   return ok({ uploadUrl, s3Key });
-});
+}, ['MAID']);

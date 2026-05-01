@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AlphaFeedbackForm } from './AlphaFeedbackForm';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Spinner } from '../ui/Spinner';
+import { Stepper, ChipGroup, SQFT_PRESETS, snapSqft } from '../ui/FormControls';
 import { useAuth } from '../../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../../api/auth';
 import {
@@ -20,7 +21,7 @@ const QRCodeSVG = lazy(() =>
 // ── Types & constants ─────────────────────────────────────────────────────────
 
 import {
-  calcHours, buildRoomList, getRate, GST, FREQ_MULTIPLIER,
+  calcHours, buildRoomList, getRate, GST, FREQ_MULTIPLIER, roundHours, NEWBIE_MULTIPLIER,
   type CleaningType, type HouseCondition, type CookingFreq, type CookingStyle, type CleanFrequency,
 } from '../../lib/estimatorCalc';
 
@@ -48,17 +49,6 @@ const CONDITION_DESCRIPTIONS: Record<HouseCondition, string> = {
   'Moderately Dirty': 'Last cleaned 1–2 months ago',
   'Heavily Soiled':   'Visible buildup, grease or neglect',
 };
-
-const SQFT_PRESETS = [
-  { label: '< 500',       value: 400  },
-  { label: '500–1,000',   value: 750  },
-  { label: '1,000–1,500', value: 1250 },
-  { label: '1,500–2,000', value: 1750 },
-  { label: '2,000–2,500', value: 2250 },
-  { label: '2,500+',      value: 3000 },
-];
-const snapSqft = (v: number) =>
-  SQFT_PRESETS.reduce((best, p) => Math.abs(p.value - v) < Math.abs(best.value - v) ? p : best).value;
 
 
 const EXTRAS = [
@@ -212,7 +202,7 @@ async function downloadChecklist(
   doc.setTextColor(71, 85, 105);
   doc.text(`Date: ${new Date().toLocaleDateString('en-CA')}`, ML, y);       y += 5;
   doc.text(`Home: ${bedrooms} bed / ${bathrooms} bath · ${cleaningType}`, ML, y); y += 5;
-  doc.text(`AI Estimate: ${result.oneCleanerHours} hrs (1 cleaner) · ${result.twoCleanerHours} hrs (2 cleaners)`, ML, y); y += 5;
+  doc.text(`AI Estimate: ${result.oneCleanerHours}–${roundHours(result.oneCleanerHours * NEWBIE_MULTIPLIER)} hrs (1 cleaner) · ${result.twoCleanerHours}–${roundHours(result.twoCleanerHours * NEWBIE_MULTIPLIER)} hrs (2 cleaners)`, ML, y); y += 5;
   doc.text(`Condition: ${result.overallCondition.replace('_', ' ')}`, ML, y); y += 5;
 
   if (result.conditionAssessment) {
@@ -274,72 +264,41 @@ async function downloadChecklist(
 
 // ── Shared UI components ──────────────────────────────────────────────────────
 
-function StepIndicator({ step }: { step: number }) {
+function StepIndicator({ step, maxStep, hasResults, onStepClick }: {
+  step: number; maxStep: number; hasResults: boolean;
+  onStepClick: (i: number) => void;
+}) {
   const STEPS = ['Home Details', 'Room Photos', 'Results'];
   return (
     <div className="flex items-center justify-center mb-6">
-      {STEPS.map((label, i) => (
-        <div key={i} className="flex items-center">
-          <div className="flex flex-col items-center">
-            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-              i < step  ? 'bg-brand-600 text-white' :
-              i === step ? 'bg-brand-700 text-white ring-4 ring-brand-200' :
-                           'bg-gray-200 text-gray-500'
-            }`}>
-              {i < step ? '✓' : i + 1}
+      {STEPS.map((label, i) => {
+        const reachable = i !== step && i <= maxStep && (i !== 2 || hasResults);
+        return (
+          <div key={i} className="flex items-center">
+            <div className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={() => onStepClick(i)}
+                disabled={!reachable}
+                title={reachable ? `Go to ${label}` : i > maxStep ? 'Complete previous steps first' : undefined}
+                className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors
+                  ${reachable ? 'hover:ring-2 hover:ring-brand-300 cursor-pointer' : i === step ? 'cursor-default' : 'cursor-not-allowed opacity-60'}
+                  ${i < step ? 'bg-brand-600 text-white' : i === step ? 'bg-brand-700 text-white ring-4 ring-brand-200' : 'bg-gray-200 text-gray-500'}
+                `}>
+                {i < step ? '✓' : i + 1}
+              </button>
+              <span className={`text-xs mt-1 font-medium whitespace-nowrap ${
+                i === step ? 'text-brand-700' : reachable ? 'text-brand-500 cursor-pointer' : 'text-gray-400'
+              }`}>
+                {label}
+              </span>
             </div>
-            <span className={`text-xs mt-1 font-medium whitespace-nowrap ${i === step ? 'text-brand-700' : 'text-gray-400'}`}>
-              {label}
-            </span>
+            {i < STEPS.length - 1 && (
+              <div className={`h-0.5 w-10 mx-1 mb-5 transition-colors ${i < step ? 'bg-brand-600' : 'bg-gray-200'}`} />
+            )}
           </div>
-          {i < STEPS.length - 1 && (
-            <div className={`h-0.5 w-10 mx-1 mb-5 transition-colors ${i < step ? 'bg-brand-600' : 'bg-gray-200'}`} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Stepper({ label, value, min, max, step = 1, onChange }: {
-  label: string; value: number; min: number; max: number; step?: number;
-  onChange: (v: number) => void;
-}) {
-  const fmt = (v: number) => step === 0.5 && v % 1 !== 0 ? v.toFixed(1) : String(v);
-  return (
-    <div>
-      <label className="label mb-1">{label}</label>
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
-          disabled={value <= min}
-          className="h-9 w-9 rounded-full border border-gray-300 text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30">−</button>
-        <span className="w-16 text-center font-semibold text-gray-900 text-lg">{fmt(value)}</span>
-        <button type="button" onClick={() => onChange(Math.min(max, +(value + step).toFixed(2)))}
-          disabled={value >= max}
-          className="h-9 w-9 rounded-full border border-gray-300 text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30">+</button>
-      </div>
-    </div>
-  );
-}
-
-function ChipGroup<T extends string>({ label, options, value, onChange }: {
-  label: string; options: readonly T[]; value: T; onChange: (v: T) => void;
-}) {
-  return (
-    <div>
-      <label className="label mb-2">{label}</label>
-      <div className="flex flex-wrap gap-2">
-        {options.map(opt => (
-          <button key={opt} type="button" onClick={() => onChange(opt)}
-            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-              value === opt
-                ? 'bg-brand-600 text-white border-brand-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-            }`}>
-            {opt}
-          </button>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -358,6 +317,8 @@ const PRIORITY_CLS: Record<string, string> = {
   standard: 'bg-gray-100 text-gray-600',
 };
 
+const FORM_STORAGE_KEY = 'estimator_form_state';
+
 // ── Main widget ───────────────────────────────────────────────────────────────
 
 export function EstimatorWidget() {
@@ -368,8 +329,34 @@ export function EstimatorWidget() {
     cleaningType?: CleaningType; houseCondition?: HouseCondition;
   }};
 
+  // Whether this session originated from the landing-page prefill flow — survives OAuth redirect.
+  // useMemo runs during render, before the restore effect clears sessionStorage, so it reads correctly.
+  const fromLandingPage = useMemo(() => {
+    if (prefill) return true;
+    try {
+      const s = JSON.parse(sessionStorage.getItem(FORM_STORAGE_KEY) ?? 'null');
+      return s?.fromLandingPage === true;
+    } catch { return false; }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Step 0 — form state
-  const [step,             setStep]            = useState(0);
+  // Lazy initializer reads sessionStorage so the correct step is set before first render (no flash).
+  const [step,             setStep]            = useState(() => {
+    if (prefill) return 1;
+    try {
+      const s = JSON.parse(sessionStorage.getItem(FORM_STORAGE_KEY) ?? 'null');
+      if (s?.step === 1) return 1;
+    } catch {}
+    return 0;
+  });
+  // Tracks the highest step ever reached — determines which step circles are clickable.
+  const [maxStep, setMaxStep] = useState(() => {
+    if (prefill) return 1;
+    try {
+      const s = JSON.parse(sessionStorage.getItem(FORM_STORAGE_KEY) ?? 'null');
+      return typeof s?.step === 'number' ? s.step : 0;
+    } catch { return 0; }
+  });
   const [bedrooms,         setBedrooms]        = useState(prefill?.bedrooms      ?? 2);
   const [bathrooms,        setBathrooms]       = useState(prefill?.bathrooms     ?? 1);
   const [sqft,             setSqft]            = useState(prefill?.sqft != null ? snapSqft(prefill.sqft) : 750);
@@ -412,8 +399,6 @@ export function EstimatorWidget() {
 
   // ── Persist form across OAuth redirect ───────────────────────────────────
 
-  const FORM_STORAGE_KEY = 'estimator_form_state';
-
   useEffect(() => {
     const saved = sessionStorage.getItem(FORM_STORAGE_KEY);
     if (!saved) return;
@@ -437,15 +422,18 @@ export function EstimatorWidget() {
 
   function saveFormState() {
     sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
+      step, fromLandingPage,
       bedrooms, bathrooms, sqft, cleaningType, houseCondition,
       pets, cookingFreq, cookingStyle, frequency, extras,
       includeKitchen, includeLivingRoom,
     }));
   }
 
-  // Reset frequency when switching to a type that doesn't support it
+  // Reset frequency for types that don't support recurring (Move-Out and STR are always one-time)
   useEffect(() => {
-    if (cleaningType !== 'Standard Cleaning') setFrequency('One-time');
+    if (cleaningType !== 'Standard Cleaning' && cleaningType !== 'Deep Cleaning') {
+      setFrequency('One-time');
+    }
   }, [cleaningType]);
 
   // Auto-select extras for move-out
@@ -457,9 +445,40 @@ export function EstimatorWidget() {
     }
   }, [cleaningType]);
 
+  // Build room list on mount when step starts at 1 (prefill flow or OAuth return to step 1)
+  useEffect(() => {
+    if (step !== 1) return;
+    const roomList = buildRoomList(bedrooms, bathrooms, extras, includeKitchen, includeLivingRoom);
+    setRooms(roomList);
+    setRoomPhotos(prev => {
+      const next: Record<string, PhotoEntry[]> = {};
+      for (const r of roomList) next[r] = prev[r] ?? [];
+      return next;
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep room list in sync when extras change from the refine strip (basement/garage affect rooms)
+  useEffect(() => {
+    if (step !== 1) return;
+    const roomList = buildRoomList(bedrooms, bathrooms, extras, includeKitchen, includeLivingRoom);
+    setRooms(roomList);
+    setRoomPhotos(prev => {
+      const next: Record<string, PhotoEntry[]> = {};
+      for (const r of roomList) next[r] = prev[r] ?? [];
+      return next;
+    });
+  }, [extras, bedrooms, bathrooms, includeKitchen, includeLivingRoom, step]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derived values
-  const { one, two } = calcHours(bedrooms, bathrooms, sqft, cleaningType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency);
-  const isMoveOut     = cleaningType === 'Move-Out/Move-In Cleaning';
+  const { one, two, oneMax, twoMax } = calcHours(bedrooms, bathrooms, sqft, cleaningType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency);
+  const isMoveOut        = cleaningType === 'Move-Out/Move-In Cleaning';
+  const showRefineStrip  = fromLandingPage && (cleaningType === 'Standard Cleaning' || cleaningType === 'Deep Cleaning');
+  const REFINE_EXTRAS    = showRefineStrip
+    ? EXTRAS.filter(e => cleaningType === 'Deep Cleaning'
+        ? !['oven', 'refrigerator', 'windows'].includes(e.id)
+        : true)
+    : [];
+
   const maxTotal = useMemo(() => {
     const safeRooms = buildRoomList(
       Math.min(bedrooms, MAX_BEDROOMS),
@@ -474,6 +493,18 @@ export function EstimatorWidget() {
   const canAnalyze    = totalReady >= MIN_TOTAL && !uploading;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
+
+  // Keep maxStep at the highest step reached so the indicator knows what's clickable.
+  useEffect(() => {
+    setMaxStep((prev: number) => Math.max(prev, step));
+  }, [step]);
+
+  function handleStepClick(i: number) {
+    if (i === step) return;
+    if (i > maxStep) return;
+    if (i === 2 && !aiResult) return;
+    setStep(i);
+  }
 
   function goToStep1() {
     const roomList = buildRoomList(bedrooms, bathrooms, extras, includeKitchen, includeLivingRoom);
@@ -643,7 +674,7 @@ export function EstimatorWidget() {
 
   return (
     <div className="space-y-5">
-      <StepIndicator step={step} />
+      <StepIndicator step={step} maxStep={maxStep} hasResults={!!aiResult} onStepClick={handleStepClick} />
 
       {/* ═══════════════════════════════════ STEP 0: Home Details ══════════════ */}
       {step === 0 && (
@@ -788,11 +819,15 @@ export function EstimatorWidget() {
 
           {/* Quick Estimate */}
           {(() => {
-            const rate     = getRate(cleaningType, frequency);
-            const base1    = Math.round(one * rate);
-            const total1   = Math.round(base1 * (1 + GST));
-            const base2    = Math.round(two * rate * 2);
-            const total2   = Math.round(base2 * (1 + GST));
+            const rate      = getRate(cleaningType, frequency);
+            const base1     = Math.round(one * rate);
+            const total1    = Math.round(base1 * (1 + GST));
+            const base1Max  = Math.round(oneMax * rate);
+            const total1Max = Math.round(base1Max * (1 + GST));
+            const base2     = Math.round(two * rate * 2);
+            const total2    = Math.round(base2 * (1 + GST));
+            const base2Max  = Math.round(twoMax * rate * 2);
+            const total2Max = Math.round(base2Max * (1 + GST));
             return (
               <div className="card bg-brand-700 text-white">
                 <div className="flex items-center justify-between mb-3">
@@ -801,16 +836,16 @@ export function EstimatorWidget() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-brand-600 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold">{one} hrs</div>
+                    <div className="text-3xl font-bold">{one}–{oneMax} hrs</div>
                     <div className="text-brand-200 text-sm mt-1">1 Cleaner</div>
-                    <div className="text-brand-300 text-xs mt-2">${base1} + GST</div>
-                    <div className="text-white text-sm font-semibold">${total1} total</div>
+                    <div className="text-brand-300 text-xs mt-2">${base1}–${base1Max} + GST</div>
+                    <div className="text-white text-sm font-semibold">${total1}–${total1Max} total</div>
                   </div>
                   <div className="bg-brand-600 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold">{two} hrs</div>
+                    <div className="text-3xl font-bold">{two}–{twoMax} hrs</div>
                     <div className="text-brand-200 text-sm mt-1">2 Cleaners</div>
-                    <div className="text-brand-300 text-xs mt-2">${base2} + GST</div>
-                    <div className="text-white text-sm font-semibold">${total2} total</div>
+                    <div className="text-brand-300 text-xs mt-2">${base2}–${base2Max} + GST</div>
+                    <div className="text-white text-sm font-semibold">${total2}–${total2Max} total</div>
                   </div>
                 </div>
                 <p className="text-xs text-brand-300 mt-3 text-center">
@@ -867,6 +902,87 @@ export function EstimatorWidget() {
               </div>
             </div>
           )}
+
+          {/* Refine accordion — only shown when arriving pre-filled from landing page */}
+          {showRefineStrip && (() => {
+            const hasNonDefaults = frequency !== 'One-time' || pets || extras.length > 0;
+            return (
+              <details className="card border border-brand-200 bg-brand-50 group" open={hasNonDefaults}>
+                <summary className="flex items-center justify-between cursor-pointer list-none select-none">
+                  <span className="text-xs font-semibold text-brand-700 uppercase tracking-wide">Refine your estimate</span>
+                  <span className="text-brand-500 text-lg leading-none transition-transform group-open:rotate-180">⌄</span>
+                </summary>
+
+                <div className="mt-4 space-y-4">
+                  {/* Frequency */}
+                  <div>
+                    <label className="label mb-2">Frequency</label>
+                    <div className="flex flex-wrap gap-2">
+                      {CLEAN_FREQUENCIES.map(freq => (
+                        <button key={freq} type="button" onClick={() => setFrequency(freq)}
+                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                            frequency === freq
+                              ? 'bg-brand-600 text-white border-brand-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                          }`}>
+                          {freq}
+                          {freq !== 'One-time' && (
+                            <span className={`ml-1.5 text-xs ${frequency === freq ? 'text-brand-200' : 'text-gray-400'}`}>
+                              {Math.round((1 - FREQ_MULTIPLIER[freq]) * 100)}% less time
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pets */}
+                  <div>
+                    <label className="label mb-2">Pets in the home?</label>
+                    <div className="flex gap-2">
+                      {(['No', 'Yes'] as const).map(opt => (
+                        <button key={opt} type="button" onClick={() => setPets(opt === 'Yes')}
+                          className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                            (opt === 'Yes') === pets
+                              ? 'bg-brand-600 text-white border-brand-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                          }`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Extras */}
+                  {REFINE_EXTRAS.length > 0 && (
+                    <div>
+                      <label className="label mb-2">
+                        Extras
+                        {cleaningType === 'Deep Cleaning' && (
+                          <span className="ml-2 text-xs text-brand-600 font-normal normal-case">oven, fridge &amp; windows included in Deep Clean</span>
+                        )}
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {REFINE_EXTRAS.map(e => (
+                          <button key={e.id} type="button"
+                            onClick={() => setExtras(prev =>
+                              prev.includes(e.id) ? prev.filter(x => x !== e.id) : [...prev, e.id]
+                            )}
+                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                              extras.includes(e.id)
+                                ? 'bg-brand-600 text-white border-brand-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+                            }`}>
+                            {e.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </details>
+            );
+          })()}
 
           {!isAuthenticated ? (
             <div className="card text-center space-y-3">
@@ -1166,18 +1282,24 @@ export function EstimatorWidget() {
                 {aiResult.overallCondition.replace('_', ' ')}
               </span>
             </div>
-            <div className={`grid gap-3 mb-4 ${aiResult.oneCleanerHours <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
-                <div className="text-2xl font-bold">{aiResult.oneCleanerHours} hrs</div>
-                <div className="text-brand-200 text-xs mt-0.5">1 Cleaner</div>
-              </div>
-              {aiResult.oneCleanerHours > 5 && (
-                <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
-                  <div className="text-2xl font-bold">{aiResult.twoCleanerHours} hrs</div>
-                  <div className="text-brand-200 text-xs mt-0.5">2 Cleaners</div>
+            {(() => {
+              const aiOneMax = roundHours(aiResult.oneCleanerHours * NEWBIE_MULTIPLIER);
+              const aiTwoMax = roundHours(aiResult.twoCleanerHours * NEWBIE_MULTIPLIER);
+              return (
+                <div className={`grid gap-3 mb-4 ${aiResult.oneCleanerHours <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
+                    <div className="text-2xl font-bold">{aiResult.oneCleanerHours}–{aiOneMax} hrs</div>
+                    <div className="text-brand-200 text-xs mt-0.5">1 Cleaner</div>
+                  </div>
+                  {aiResult.oneCleanerHours > 5 && (
+                    <div className="bg-brand-600 rounded-xl p-3 text-center text-white">
+                      <div className="text-2xl font-bold">{aiResult.twoCleanerHours}–{aiTwoMax} hrs</div>
+                      <div className="text-brand-200 text-xs mt-0.5">2 Cleaners</div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
             <p className="text-sm text-gray-700">{aiResult.conditionAssessment}</p>
             {!aiResult.matchesSelfReport && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
@@ -1190,7 +1312,9 @@ export function EstimatorWidget() {
           {aiResult.upgradeRecommendation ? (() => {
             const upgrade    = aiResult.upgradeRecommendation!;
             const upgradeType = upgrade.suggestedType as CleaningType;
-            const upgradeHours = calcHours(bedrooms, bathrooms, sqft, upgradeType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency).one;
+            const upgradeResult = calcHours(bedrooms, bathrooms, sqft, upgradeType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency);
+            const upgradeHours    = upgradeResult.one;
+            const upgradeHoursMax = upgradeResult.oneMax;
 
             // 4 representative standard tasks from checklist
             const stdTypeKey: 'standard' | 'deep' | 'moveout' =
@@ -1210,7 +1334,7 @@ export function EstimatorWidget() {
                       <p className="font-semibold text-gray-900">{cleaningType}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-gray-800">{aiResult.oneCleanerHours} hrs</p>
+                      <p className="text-2xl font-bold text-gray-800">{aiResult.oneCleanerHours}–{roundHours(aiResult.oneCleanerHours * NEWBIE_MULTIPLIER)} hrs</p>
                       <p className="text-xs text-gray-400">1 cleaner</p>
                     </div>
                   </div>
@@ -1243,7 +1367,7 @@ export function EstimatorWidget() {
                       <p className="font-semibold text-brand-900">{upgradeType}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-brand-800">{upgradeHours} hrs</p>
+                      <p className="text-2xl font-bold text-brand-800">{upgradeHours}–{upgradeHoursMax} hrs</p>
                       <p className="text-xs text-brand-400">1 cleaner</p>
                     </div>
                   </div>
@@ -1271,12 +1395,12 @@ export function EstimatorWidget() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Formula estimate (for comparison)</p>
               <div className={`grid gap-3 ${one <= 5 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 <div className="text-center">
-                  <div className="text-xl font-bold text-gray-700">{one} hrs</div>
+                  <div className="text-xl font-bold text-gray-700">{one}–{oneMax} hrs</div>
                   <div className="text-xs text-gray-400">1 Cleaner</div>
                 </div>
                 {one > 5 && (
                   <div className="text-center">
-                    <div className="text-xl font-bold text-gray-700">{two} hrs</div>
+                    <div className="text-xl font-bold text-gray-700">{two}–{twoMax} hrs</div>
                     <div className="text-xs text-gray-400">2 Cleaners</div>
                   </div>
                 )}

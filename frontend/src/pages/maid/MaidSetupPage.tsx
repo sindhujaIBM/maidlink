@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -28,11 +28,22 @@ export function MaidSetupPage() {
 
   const isNew = !existingProfile;
 
-  const [bio, setBio]                   = useState(existingProfile?.bio || '');
-  const [hourlyRate, setHourlyRate]     = useState(String(existingProfile?.hourly_rate || ''));
-  const [serviceCodes, setServiceCodes] = useState<string[]>(existingProfile?.service_area_codes || []);
-  const [experience, setExperience]     = useState(String(existingProfile?.years_experience || '0'));
+  // Initialise empty — synced from existingProfile via useEffect below
+  const [bio, setBio]                   = useState('');
+  const [hourlyRate, setHourlyRate]     = useState('');
+  const [serviceCodes, setServiceCodes] = useState<string[]>([]);
+  const [experience, setExperience]     = useState('0');
   const [error, setError]               = useState<string | null>(null);
+
+  // Sync form fields when the profile query resolves (prevents blank form on edit)
+  useEffect(() => {
+    if (existingProfile) {
+      setBio(existingProfile.bio || '');
+      setHourlyRate(String(existingProfile.hourly_rate || ''));
+      setServiceCodes(existingProfile.service_area_codes || []);
+      setExperience(String(existingProfile.years_experience || '0'));
+    }
+  }, [existingProfile]);
 
   // ── Photo (inline upload for new profiles) ────────────────────────────────
   const [photoS3Key, setPhotoS3Key]         = useState<string | null>(null);
@@ -86,7 +97,8 @@ export function MaidSetupPage() {
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { setPhotoError('Please select an image file'); return; }
+    const allowedPhotoTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedPhotoTypes.includes(file.type)) { setPhotoError('Please select a JPEG or PNG image'); return; }
     if (file.size > 5 * 1024 * 1024) { setPhotoError('Image must be under 5 MB'); return; }
 
     setPhotoError(null);
@@ -203,18 +215,18 @@ export function MaidSetupPage() {
                   type="button"
                   onClick={() => photoFileRef.current?.click()}
                   disabled={photoUploading}
-                  className="btn-secondary text-sm disabled:opacity-50"
+                  className="btn-secondary text-sm disabled:opacity-50 inline-flex items-center gap-2"
                 >
-                  {photoUploading ? <Spinner size="sm" /> : null}
+                  {photoUploading && <Spinner size="sm" />}
                   {photoUploading ? 'Uploading…' : photoS3Key ? 'Change Photo' : 'Upload Photo'}
                 </button>
-                {photoS3Key && <p className="mt-1 text-xs text-green-700">Photo uploaded</p>}
-                <p className="mt-1 text-xs text-gray-400">JPEG · max 5 MB</p>
+                {photoS3Key && <p className="mt-1 text-xs text-green-700">✓ Photo uploaded</p>}
+                <p className="mt-1 text-xs text-gray-400">JPEG or PNG · max 5 MB</p>
                 {photoError && <p className="mt-1 text-xs text-red-600">{photoError}</p>}
                 <input
                   ref={photoFileRef}
                   type="file"
-                  accept="image/jpeg,image/jpg"
+                  accept="image/jpeg,image/jpg,image/png"
                   onChange={handlePhotoChange}
                   className="hidden"
                 />
@@ -255,9 +267,9 @@ export function MaidSetupPage() {
                 type="button"
                 onClick={() => idDocRef.current?.click()}
                 disabled={idDocUploading || existingProfile?.is_verified}
-                className="mt-2 btn-secondary text-sm disabled:opacity-50"
+                className="mt-2 btn-secondary text-sm disabled:opacity-50 inline-flex items-center gap-2"
               >
-                {idDocUploading ? <Spinner size="sm" /> : null}
+                {idDocUploading && <Spinner size="sm" />}
                 {idDocUploading ? 'Uploading…' : idDocS3Key ? 'Replace Document' : 'Upload ID Document'}
               </button>
               <p className="mt-1 text-xs text-gray-400">PDF, JPEG, or PNG · max 10 MB</p>

@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../api/auth';
-import { calcHours } from '../lib/estimatorCalc';
+import { calcHours, getRate } from '../lib/estimatorCalc';
 import type { CleaningType, HouseCondition } from '../lib/estimatorCalc';
+import { Stepper, ChipGroup, SQFT_PRESETS } from '../components/ui/FormControls';
 import { Wordmark } from '../components/layout/Wordmark';
 
 // ── Brand tokens ──────────────────────────────────────────────
@@ -153,107 +154,96 @@ function NavBar({ isAuthenticated }: { isAuthenticated: boolean }) {
 }
 
 // ── Estimate form ─────────────────────────────────────────────
-const CLEAN_TYPE_MAP: Record<string, CleaningType> = {
-  standard: 'Standard Cleaning',
-  deep:     'Deep Cleaning',
-  moveout:  'Move-Out/Move-In Cleaning',
-};
-const CONDITION_MAP: Record<string, HouseCondition> = {
-  pristine: 'Pristine',
-  normal:   'Normal',
-  dirty:    'Moderately Dirty',
-  heavy:    'Heavily Soiled',
-};
+const CLEANING_TYPES: CleaningType[] = [
+  'Standard Cleaning',
+  'Deep Cleaning',
+  'Move-Out/Move-In Cleaning',
+  'Short-Term Rental Turnover',
+];
+const HOUSE_CONDITIONS: HouseCondition[] = [
+  'Pristine', 'Lightly Used', 'Normal', 'Moderately Dirty', 'Heavily Soiled',
+];
 
 function EstimateForm() {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  const [beds,      setBeds]      = useState(2);
-  const [baths,     setBaths]     = useState(1);
-  const [sqft,      setSqft]      = useState(1000);
-  const [cleanType, setCleanType] = useState('standard');
-  const [condition, setCondition] = useState('normal');
+  const [beds,         setBeds]         = useState(2);
+  const [baths,        setBaths]        = useState(1);
+  const [sqft,         setSqft]         = useState(750);
+  const [cleaningType, setCleaningType] = useState<CleaningType>('Standard Cleaning');
+  const [condition,    setCondition]    = useState<HouseCondition>('Normal');
 
-  const result    = calcHours(beds, baths, sqft, CLEAN_TYPE_MAP[cleanType], CONDITION_MAP[condition], false, 'Occasionally', 'Moderate', []);
-  const hrs       = result.one;
-  const cleaners  = hrs > 5 ? 2 : 1;
-  const onSite    = cleaners === 2 ? result.two : hrs;
-  const rate      = cleanType === 'moveout' ? 45 : 40;
-  const basePrice = Math.round(onSite * rate * cleaners);
-  const gstAmt    = Math.round(basePrice * 0.05);
-  const totalPrice = basePrice + gstAmt;
-
-  const Stepper = ({ value, setValue, step = 1, min }: { value: number; setValue: (v: number) => void; step?: number; min: number }) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${C.line}`, background: '#fff' }}>
-      <button onClick={() => setValue(Math.max(min, value - step))} style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: C.creamDeep, color: C.ink, cursor: 'pointer', fontSize: 18, fontWeight: 500, lineHeight: 1 }}>−</button>
-      <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 600, color: C.ink }}>{value}</div>
-      <button onClick={() => setValue(value + step)} style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: C.teal, color: '#fff', cursor: 'pointer', fontSize: 18, fontWeight: 500, lineHeight: 1 }}>+</button>
-    </div>
-  );
-
-  const SegBtn = ({ active, onClick, children, sub }: { active: boolean; onClick: () => void; children: React.ReactNode; sub?: string }) => (
-    <button onClick={onClick} style={{
-      padding: '11px 8px', borderRadius: 10,
-      border: `1.5px solid ${active ? C.teal : C.line}`,
-      background: active ? `${C.teal}12` : '#fff',
-      color: active ? C.teal : C.ink,
-      cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: sans,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-    }}>
-      <span>{children}</span>
-      {sub && <span style={{ fontSize: 10, fontWeight: 500, color: active ? C.teal : C.ink50, opacity: 0.8 }}>{sub}</span>}
-    </button>
-  );
+  const result      = calcHours(beds, baths, sqft, cleaningType, condition, false, 'Occasionally', 'Moderate', []);
+  const hrs         = result.one;
+  const cleaners    = hrs > 5 ? 2 : 1;
+  const onSite      = cleaners === 2 ? result.two    : result.one;
+  const onSiteMax   = cleaners === 2 ? result.twoMax : result.oneMax;
+  const rate        = getRate(cleaningType, 'One-time');
+  const basePrice   = Math.round(onSite    * rate * cleaners);
+  const basePriceMax= Math.round(onSiteMax * rate * cleaners);
+  const totalPrice  = Math.round(basePrice    * 1.05);
+  const totalMax    = Math.round(basePriceMax * 1.05);
 
   const FieldLabel = ({ children }: { children: React.ReactNode }) => (
     <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 0.8, marginBottom: 8, color: C.ink50 }}>{children}</div>
   );
 
   return (
-    <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? 20 : 28, boxShadow: '0 20px 60px rgba(15,56,51,0.12), 0 1px 3px rgba(0,0,0,0.05)', border: `1px solid ${C.line}` }}>
+    <div style={{ background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 20px 60px rgba(15,56,51,0.12), 0 1px 3px rgba(0,0,0,0.05)', border: `1px solid ${C.line}` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: C.ink }}>Free estimate</div>
         <div style={{ fontSize: 11, padding: '4px 10px', background: `${C.gold}22`, color: C.teal, borderRadius: 999, fontWeight: 700, letterSpacing: 0.4 }}>~60 SEC</div>
       </div>
-      <div style={{ fontSize: 13, color: C.ink70, marginBottom: 22 }}>All fields required · no sign-up.</div>
+      <div style={{ fontSize: 13, color: C.ink70, marginBottom: 20 }}>All fields required · no sign-up.</div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 18 }}>
-        <div><FieldLabel>Bedrooms</FieldLabel><Stepper value={beds}  setValue={setBeds}  min={0} /></div>
-        <div><FieldLabel>Bathrooms</FieldLabel><Stepper value={baths} setValue={setBaths} min={1} /></div>
-        <div><FieldLabel>Sq ft</FieldLabel><Stepper value={sqft}  setValue={setSqft}  step={100} min={400} /></div>
+      {/* Beds / Baths */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div><FieldLabel>Bedrooms</FieldLabel><Stepper value={beds}  min={0} max={8} onChange={setBeds} /></div>
+        <div><FieldLabel>Bathrooms</FieldLabel><Stepper value={baths} min={0} max={6} step={0.5} onChange={setBaths} /></div>
       </div>
 
-      <div style={{ marginBottom: 18 }}>
+      {/* Sqft presets */}
+      <div style={{ marginBottom: 16 }}>
+        <FieldLabel>Home size</FieldLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {SQFT_PRESETS.map(p => (
+            <button key={p.value} type="button" onClick={() => setSqft(p.value)}
+              className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                sqft === p.value
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
+              }`}>
+              {p.label}
+              <span className={`block text-xs mt-0.5 ${sqft === p.value ? 'text-brand-100' : 'text-gray-400'}`}>sq ft</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Cleaning type */}
+      <div style={{ marginBottom: 16 }}>
         <FieldLabel>Cleaning type</FieldLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          <SegBtn active={cleanType === 'standard'} onClick={() => setCleanType('standard')} sub="recurring">Standard</SegBtn>
-          <SegBtn active={cleanType === 'deep'}     onClick={() => setCleanType('deep')}     sub="top to bottom">Deep</SegBtn>
-          <SegBtn active={cleanType === 'moveout'}  onClick={() => setCleanType('moveout')}  sub="empty home">Move-out</SegBtn>
-        </div>
+        <ChipGroup options={CLEANING_TYPES} value={cleaningType} onChange={setCleaningType} />
       </div>
 
-      <div style={{ marginBottom: 22 }}>
+      {/* House condition */}
+      <div style={{ marginBottom: 20 }}>
         <FieldLabel>House condition</FieldLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 6 }}>
-          <SegBtn active={condition === 'pristine'} onClick={() => setCondition('pristine')}>Pristine</SegBtn>
-          <SegBtn active={condition === 'normal'}   onClick={() => setCondition('normal')}>Normal</SegBtn>
-          <SegBtn active={condition === 'dirty'}    onClick={() => setCondition('dirty')}>Dirty</SegBtn>
-          <SegBtn active={condition === 'heavy'}    onClick={() => setCondition('heavy')}>Heavy</SegBtn>
-        </div>
+        <ChipGroup options={HOUSE_CONDITIONS} value={condition} onChange={setCondition} />
       </div>
 
+      {/* Live estimate preview */}
       <div style={{ padding: '16px 18px', background: `linear-gradient(135deg, ${C.teal}18, ${C.gold}18)`, border: `1px solid ${C.teal}33`, borderRadius: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 0.8, fontWeight: 700, color: C.teal, marginBottom: 2 }}>Estimated time</div>
           <div style={{ fontFamily: serif, fontSize: 32, fontWeight: 600, color: C.teal, lineHeight: 1 }}>
-            {onSite}<span style={{ fontSize: 15, fontWeight: 500 }}> hrs</span>
+            {onSite}–{onSiteMax}<span style={{ fontSize: 15, fontWeight: 500 }}> hrs</span>
           </div>
           <div style={{ fontSize: 11, color: C.ink70, marginTop: 3 }}>{cleaners} cleaner{cleaners > 1 ? 's' : ''} on site</div>
         </div>
         <div style={{ textAlign: 'right' as const }}>
           <div style={{ fontSize: 10, textTransform: 'uppercase' as const, letterSpacing: 0.8, fontWeight: 700, color: C.ink50, marginBottom: 2 }}>Estimated total</div>
-          <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 600, color: C.ink, lineHeight: 1.1 }}>${totalPrice}</div>
-          <div style={{ fontSize: 10, color: C.ink70, marginTop: 3 }}>${basePrice} + ${gstAmt} GST · ${rate}/hr</div>
+          <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 600, color: C.ink, lineHeight: 1.1 }}>${totalPrice}–${totalMax}</div>
+          <div style={{ fontSize: 10, color: C.ink70, marginTop: 3 }}>${basePrice}–${basePriceMax} + GST · ${rate}/hr</div>
         </div>
       </div>
 
@@ -262,8 +252,8 @@ function EstimateForm() {
           bedrooms:       beds,
           bathrooms:      baths,
           sqft,
-          cleaningType:   CLEAN_TYPE_MAP[cleanType],
-          houseCondition: CONDITION_MAP[condition],
+          cleaningType,
+          houseCondition: condition,
         }})}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,

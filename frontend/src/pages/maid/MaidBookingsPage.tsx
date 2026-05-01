@@ -4,16 +4,22 @@ import { listBookings, completeBooking, getAfterPhotoUploadUrl, submitAfterPhoto
 import { Layout } from '../../components/layout/Layout';
 import { Badge, statusVariant } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
+
+function safeFormatTime(iso: string) {
+  const d = parseISO(iso);
+  return isValid(d) ? format(d, 'h:mm a') : '—';
+}
 
 export function MaidBookingsPage() {
   const qc = useQueryClient();
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const pendingBooking = useRef<string | null>(null); // which booking the next file input change is for
 
-  const [uploadingFor,   setUploadingFor]   = useState<string | null>(null);
-  const [uploadError,    setUploadError]    = useState<string | null>(null);
-  const [uploadedFor,    setUploadedFor]    = useState<Set<string>>(new Set());
+  const [uploadingFor,    setUploadingFor]    = useState<string | null>(null);
+  const [uploadError,     setUploadError]     = useState<string | null>(null);
+  const [uploadedFor,     setUploadedFor]     = useState<Set<string>>(new Set());
+  const [confirmComplete, setConfirmComplete] = useState<string | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings', 'maid'],
@@ -92,7 +98,7 @@ export function MaidBookingsPage() {
                       <Badge variant={statusVariant(b.status)}>{b.status}</Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {format(new Date(b.startAt), 'EEE, MMM d, yyyy')} · {b.startAt.slice(11,16)} – {b.endAt.slice(11,16)}
+                      {format(parseISO(b.startAt), 'EEE, MMM d, yyyy')} · {safeFormatTime(b.startAt)} – {safeFormatTime(b.endAt)}
                     </p>
                     <p className="text-sm text-gray-500 mt-0.5">{b.addressLine1}, {b.postalCode}</p>
                     {b.notes && <p className="text-xs text-gray-400 mt-1 italic">"{b.notes}"</p>}
@@ -135,13 +141,24 @@ export function MaidBookingsPage() {
                   <div className="text-right flex-shrink-0">
                     <p className="font-semibold text-gray-900">${parseFloat(b.totalPrice).toFixed(2)}</p>
                     {canComplete && (
-                      <button
-                        onClick={() => { if (confirm('Mark this job as complete?')) completeMutation.mutate(b.id); }}
-                        disabled={completeMutation.isPending}
-                        className="mt-2 text-xs text-brand-600 hover:underline disabled:opacity-50"
-                      >
-                        {completeMutation.isPending ? 'Updating…' : 'Mark as Complete'}
-                      </button>
+                      confirmComplete === b.id ? (
+                        <div className="mt-2 flex items-center justify-end gap-2">
+                          <span className="text-xs text-gray-600">Mark complete?</span>
+                          <button
+                            onClick={() => { completeMutation.mutate(b.id); setConfirmComplete(null); }}
+                            className="text-xs font-medium text-brand-600 hover:underline"
+                          >Yes</button>
+                          <button onClick={() => setConfirmComplete(null)} className="text-xs text-gray-400 hover:underline">No</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmComplete(b.id)}
+                          disabled={completeMutation.isPending}
+                          className="mt-2 text-xs text-brand-600 hover:underline disabled:opacity-50"
+                        >
+                          {completeMutation.isPending ? 'Updating…' : 'Mark as Complete'}
+                        </button>
+                      )
                     )}
                   </div>
                 </div>

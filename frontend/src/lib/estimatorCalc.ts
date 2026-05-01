@@ -7,7 +7,13 @@ export type CleanFrequency = 'One-time' | 'Monthly' | 'Biweekly' | 'Weekly';
 export interface CalcResult {
   one: number;
   two: number;
+  oneMax: number; // upper bound for a less-experienced cleaner (×NEWBIE_MULTIPLIER)
+  twoMax: number;
 }
+
+// Upper-bound multiplier applied to produce the "max" estimate shown to customers.
+// A newer cleaner may take up to this much longer than the baseline.
+export const NEWBIE_MULTIPLIER = 1.35;
 
 // Recurring cleans take less time because the home stays maintained between visits.
 // Multipliers relative to a one-time standard clean.
@@ -46,6 +52,8 @@ export function getRate(type: CleaningType, frequency: CleanFrequency): number {
  *
  * Rounding: ≤ 4h → ceil to nearest 0.5; > 4h → ceil to nearest 1.
  */
+export const roundHours = (n: number) => n <= 4 ? Math.ceil(n * 2) / 2 : Math.ceil(n);
+
 export function calcHours(
   bedrooms: number,
   bathrooms: number,
@@ -101,7 +109,12 @@ export function calcHours(
   }
 
   const round = (n: number) => n <= 4 ? Math.ceil(n * 2) / 2 : Math.ceil(n);
-  return { one: round(base), two: round(base / 2) };
+  return {
+    one:    round(base),
+    two:    round(base / 2),
+    oneMax: round(base * NEWBIE_MULTIPLIER),
+    twoMax: round(base / 2 * NEWBIE_MULTIPLIER),
+  };
 }
 
 /**

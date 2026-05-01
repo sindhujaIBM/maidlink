@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface BadgeProps {
   children: React.ReactNode;
   variant?: 'green' | 'yellow' | 'red' | 'gray' | 'blue';

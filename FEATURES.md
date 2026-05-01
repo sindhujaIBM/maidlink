@@ -1,6 +1,6 @@
 # MaidLink — Features & Proposals
 
-_Last updated: 2026-04-10_
+_Last updated: 2026-05-01_
 
 ## Status Legend
 - ✅ **Done** — Implemented and deployed (or ready to deploy)
@@ -85,6 +85,9 @@ _Last updated: 2026-04-10_
 
 ### P0 — Blocking Revenue
 
+#### Admin service has no handlers
+`services/admin/` is a stub (only `package.json` + `tsconfig.json`). `AdminBookingsPage.tsx` calls `listAdminBookings` which does not exist in the repo — the admin bookings page is broken in production. Needs: `listAdminBookings` handler, route registration in `serverless.yml`, `withAuth(['ADMIN'])` guard, and basic cursor pagination.
+
 #### Payments (Stripe)
 `total_price` is calculated and stored but no money moves. Stripe Payment Intents: hold at booking time, capture on completion, refund on cancellation.
 
@@ -95,12 +98,33 @@ Maid application intake → admin notification is live. Still missing: booking c
 
 ### P1 — Core Trust
 
+#### Cleaning type filter misleads users — `MaidListPage`
+The "Cleaning type" dropdown appears as an active filter chip after search but doesn't actually filter maids — it only pre-fills the booking form. Either wire it up server-side or remove it from the filter form entirely and pass it silently as a query param.
+
+#### MaidDetailPage: `navigate(-1)` breaks on direct links
+Back button uses `navigate(-1)` — if the user arrives from an external link or bookmark, this takes them somewhere outside the app. Fix: `navigate('/maids')` as a default, or check `document.referrer` first.
+
 #### Cancellation Policy & Refund Logic
 Free cancellation 48h+, 50% within 24h, no refund same-day. Protects maid income. Requires Payments first.
 
 ---
 
 ### P2 — Retention & Growth
+
+#### Missing `<title>` on authenticated pages
+`BookingsPage`, `DashboardPage`, `ProfilePage`, `MaidSetupPage`, `AvailabilityPage`, `EarningsPage` have no Helmet title — browser tab shows the last-set title (usually the home page). Add `<Helmet><title>Page Name — MaidLink</title></Helmet>` to each, or add a `title` prop to `Layout`.
+
+#### Slot picker is a cramped scroll box — `MaidDetailPage`
+`max-h-48 overflow-y-scroll` inside a sticky panel is hard to scan across many slots. Group by date with date headers, or show a compact calendar where clicking a date expands that day's slots.
+
+#### Bio character counter + rate range hint — `MaidSetupPage`
+Bio `<textarea>` has no `maxLength` and no live counter. Hourly rate has no suggested range. Add `maxLength={500}`, a live `X / 500` counter, and helper text like `"$25–$50/hr is typical in Calgary"`.
+
+#### MaidCard "No bio yet." placeholder text
+`maid.bio || 'No bio yet.'` is developer copy, not customer copy. Replace with `"Available for bookings in Calgary"` or omit the line entirely when bio is empty.
+
+#### StarRating renders `<button>` when non-interactive — `StarRating.tsx`
+When `interactive={false}`, the component still renders `<button>` elements which are in the tab order. Render `<span>` instead so display-only stars are inert in the DOM.
 
 #### Recurring Bookings
 "Every Friday at 10am" — the #1 retention driver. `booking_series` table + interval logic + auto-generation of future bookings.
@@ -111,6 +135,33 @@ Save address and favourite maids. Auto-populate address on booking form. "Favour
 ---
 
 ### P3 — Operational Maturity
+
+#### Two NavBar implementations — `HomePage` vs `Navbar.tsx`
+`HomePage.tsx` has its own local `NavBar` (anchor links, no beta banner, no chat widget). Shared `Navbar` is a completely separate component. Beta banner and `SchedulerChat` never appear on the home page; nav changes need to be made in two places. Extract the anchor-link nav into a prop/mode on the shared `Navbar`, or document the intentional split.
+
+#### `useIsMobile` hook duplicated — `HomePage.tsx` + `Navbar.tsx`
+Defined identically in both files. Extract to `src/hooks/useIsMobile.ts` and add ~150ms debounce to the resize listener.
+
+#### `SchedulerChat` always mounted in Layout
+Every page that uses `Layout` mounts the floating chat widget — distracting on focused forms (maid application, availability setup). Add a `hideChat?: boolean` prop to `Layout`.
+
+#### Verify `animate-marquee` Tailwind keyframe — `tailwind.config.js`
+`animate-marquee` is not a built-in Tailwind utility. If `keyframes.marquee` isn't defined in the config, the beta banner renders static. Confirm the config has the keyframe or the animation plays correctly in production.
+
+#### Calgary FSA codes duplicated — `frontend/constants` + `@maidlink/shared`
+Same FSA list defined in two places. Frontend should import from `@maidlink/shared` so adding a new FSA code only needs one change.
+
+#### CORS `Allow-Origin: *` should be locked to production domain
+`errors.ts` and `withAuth.ts` return `Access-Control-Allow-Origin: *`. Fine for MVP with header-based auth, but should be locked to `https://maidlink.ca` before launch.
+
+#### No DB-level validation on `service_area_codes` — `maid_profiles`
+`TEXT[]` column accepts arbitrary strings. A check constraint or trigger could validate against known Calgary FSA codes.
+
+#### `PENDING` booking status has no code path
+`BookingStatus` includes `'PENDING'` but bookings default to `'CONFIRMED'`. Either add an admin approval flow that creates `PENDING` bookings, or remove `PENDING` from the type to avoid confusion.
+
+#### MaidBookingsPage: shared file input ref can desync
+A single `<input ref={fileInputRef}>` is shared across all booking rows; active booking tracked via `pendingBooking.current`. If two uploads are triggered quickly the ref can get out of sync. Move the input inside each row or use separate controlled state per row.
 
 #### Privacy Policy, Terms & Conditions, Cookie Notice
 Required for PIPEDA / Alberta PIPA compliance. Disclose: Google OAuth, AWS (S3/Lambda/Aurora — ca-west-1), GA4, Amazon Bedrock (photos). Cookie notice needed for GA4 (CASL). Footer links already stubbed as `href="#"`.
@@ -127,11 +178,12 @@ These are known gaps in the current architecture — not blocking for MVP but im
 | Concern | Impact | Notes |
 |---------|--------|-------|
 | **RDS cold starts** | ~500ms first request after Lambda cold start | No RDS Proxy; direct Lambda→RDS connection. Consider RDS Proxy once traffic picks up. |
-| **No API rate limiting** | Abuse / runaway costs | API Gateway usage plans or a WAF rule would limit per-IP/user request rates. AI endpoints (Bedrock) are especially exposed — only a DB-level daily limit exists on the estimator. |
+| **No API rate limiting on auth endpoints** | Abuse / cost | `POST /auth/google` has no rate limiting. API Gateway WAF or a Lambda-level counter would prevent brute-force. AI endpoints (Bedrock) are especially exposed — only a DB-level daily limit exists on the estimator. |
 | **AI calls are synchronous** | 10–30s Lambda timeout risk | Bedrock InvokeModel is called inline. Under load or model latency spikes, Lambdas can timeout. Consider SQS + async processing with WebSocket/polling for Bedrock calls. |
-| **No React error boundary** | Uncaught render errors crash whole app | A top-level `<ErrorBoundary>` would catch rendering errors and show a fallback UI instead of a blank screen. |
 | **Refresh token storage (localStorage)** | XSS risk | Refresh tokens in localStorage are accessible to JS. HttpOnly cookies would be more secure but require same-domain backend or a BFF layer. Acceptable for MVP. |
-| **No token revocation on logout** | Stolen token usable until expiry | Access tokens (24h) aren't revoked server-side on logout. A token blocklist (Redis or DB) would fix this. |
+| **No token revocation on logout** | Stolen token usable until expiry | Access tokens aren't revoked server-side on logout. A token blocklist (Redis or DB) would fix this. Refresh tokens rotate on use (single-use) but the access token remains live until expiry. |
+| **Duplicate `/auth/me` and `/users/me` endpoints** | Maintenance burden | Both hit the `users` table and return similar shapes. Schema changes need updating in two places. Consolidate post-MVP. |
+| **Google `tokeninfo` endpoint soft-deprecated** | Future breakage risk | `verifyIdToken` calls Google's tokeninfo endpoint. Google recommends `google-auth-library` for local JWKS verification (no round-trip, no rate limit). Post-MVP item. |
 
 ---
 

@@ -17,8 +17,9 @@ export function PhotoUpload({ currentPhotoUrl, onUploaded }: PhotoUploadProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file');
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Please select a JPEG or PNG image');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -69,17 +70,17 @@ export function PhotoUpload({ currentPhotoUrl, onUploaded }: PhotoUploadProps) {
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={isUploading}
-          className="btn-secondary text-sm"
+          className="btn-secondary text-sm inline-flex items-center gap-2"
         >
-          {isUploading ? <Spinner size="sm" /> : null}
+          {isUploading && <Spinner size="sm" />}
           {isUploading ? 'Uploading…' : 'Change Photo'}
         </button>
-        <p className="mt-1 text-xs text-gray-500">JPEG, max 5 MB</p>
+        <p className="mt-1 text-xs text-gray-500">JPEG or PNG, max 5 MB</p>
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         <input
           ref={fileRef}
           type="file"
-          accept="image/jpeg,image/jpg"
+          accept="image/jpeg,image/jpg,image/png"
           onChange={handleFileChange}
           className="hidden"
         />

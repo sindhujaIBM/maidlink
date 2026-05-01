@@ -249,7 +249,7 @@ export function MaidDetailPage() {
             {selectedSlot && (
               <form onSubmit={handleBook} className="space-y-3">
                 <div>
-                  <label className="label">Custom end time (HH:MM, optional)</label>
+                  <label className="label">Custom end time (optional)</label>
                   <input
                     type="time"
                     className="input"
@@ -275,13 +275,29 @@ export function MaidDetailPage() {
                   <textarea className="input" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any special instructions…" />
                 </div>
 
+                {/* Live price estimate */}
+                {(() => {
+                  const startMs  = new Date(selectedSlot.startAt).getTime();
+                  const endMs    = customEnd
+                    ? new Date(`${selectedSlot.startAt.slice(0, 10)}T${customEnd}:00`).getTime()
+                    : startMs + 3 * 60 * 60 * 1000;
+                  const hours    = Math.max(0, (endMs - startMs) / 3_600_000);
+                  const estimate = (hours * parseFloat(maid.hourlyRate)).toFixed(2);
+                  return (
+                    <div className="rounded-lg bg-brand-50 border border-brand-100 px-4 py-3 flex justify-between items-center text-sm">
+                      <span className="text-gray-600">{hours.toFixed(1)} hr{hours !== 1 ? 's' : ''} · ${rate}/hr</span>
+                      <span className="font-semibold text-brand-700 text-base">${estimate} est.</span>
+                    </div>
+                  );
+                })()}
+
                 {bookError && (
                   <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700">{bookError}</div>
                 )}
 
                 <button type="submit" disabled={isBooking} className="btn-primary w-full">
-                  {isBooking ? <Spinner size="sm" /> : null}
-                  {isBooking ? 'Booking…' : `Confirm Booking · $${rate}/hr`}
+                  {isBooking && <Spinner size="sm" />}
+                  {isBooking ? 'Booking…' : 'Confirm Booking'}
                 </button>
               </form>
             )}

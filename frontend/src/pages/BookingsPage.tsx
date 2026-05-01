@@ -6,16 +6,23 @@ import { Badge, statusVariant } from '../components/ui/Badge';
 import { Spinner } from '../components/ui/Spinner';
 import { Modal } from '../components/ui/Modal';
 import { StarRating } from '../components/ui/StarRating';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
+
+function safeFormatTime(iso: string) {
+  const d = parseISO(iso);
+  return isValid(d) ? format(d, 'h:mm a') : '—';
+}
 
 export function BookingsPage() {
   const qc = useQueryClient();
-  const [reviewTarget,  setReviewTarget]  = useState<string | null>(null);
-  const [rating,        setRating]        = useState(0);
-  const [comment,       setComment]       = useState('');
-  const [reviewedIds,   setReviewedIds]   = useState<Set<string>>(new Set());
-  const [reviewError,   setReviewError]   = useState('');
-  const [photosTarget,  setPhotosTarget]  = useState<string | null>(null);
+  const [reviewTarget,   setReviewTarget]   = useState<string | null>(null);
+  const [rating,         setRating]         = useState(0);
+  const [comment,        setComment]        = useState('');
+  const [reviewedIds,    setReviewedIds]    = useState<Set<string>>(new Set());
+  const [reviewError,    setReviewError]    = useState('');
+  const [photosTarget,   setPhotosTarget]   = useState<string | null>(null);
+  // Inline confirmation state: bookingId → which action is pending
+  const [confirmPending, setConfirmPending] = useState<{ id: string; action: 'cancel' | 'complete' } | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings', 'customer'],
@@ -100,7 +107,7 @@ export function BookingsPage() {
                       <Badge variant={statusVariant(b.status)}>{b.status}</Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {format(new Date(b.startAt), 'EEE, MMM d, yyyy')} · {b.startAt.slice(11,16)} – {b.endAt.slice(11,16)}
+                      {format(parseISO(b.startAt), 'EEE, MMM d, yyyy')} · {safeFormatTime(b.startAt)} – {safeFormatTime(b.endAt)}
                     </p>
                     <p className="text-sm text-gray-500 mt-0.5">{b.addressLine1}, {b.city} {b.postalCode}</p>
 
@@ -117,13 +124,24 @@ export function BookingsPage() {
                     <p className="font-semibold text-gray-900">${parseFloat(b.totalPrice).toFixed(2)}</p>
                     <div className="flex flex-col items-end gap-1 mt-2">
                       {canComplete && (
-                        <button
-                          onClick={() => { if (confirm('Mark this booking as complete?')) completeMutation.mutate(b.id); }}
-                          disabled={completeMutation.isPending}
-                          className="text-xs text-brand-600 hover:underline disabled:opacity-50"
-                        >
-                          {completeMutation.isPending ? 'Updating…' : 'Mark as Complete'}
-                        </button>
+                        confirmPending?.id === b.id && confirmPending.action === 'complete' ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">Mark complete?</span>
+                            <button
+                              onClick={() => { completeMutation.mutate(b.id); setConfirmPending(null); }}
+                              className="text-xs font-medium text-brand-600 hover:underline"
+                            >Yes</button>
+                            <button onClick={() => setConfirmPending(null)} className="text-xs text-gray-400 hover:underline">No</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmPending({ id: b.id, action: 'complete' })}
+                            disabled={completeMutation.isPending}
+                            className="text-xs text-brand-600 hover:underline disabled:opacity-50"
+                          >
+                            {completeMutation.isPending ? 'Updating…' : 'Mark as Complete'}
+                          </button>
+                        )
                       )}
                       {canReview && (
                         <button onClick={() => openReview(b.id)} className="text-xs text-brand-600 hover:underline">
@@ -131,15 +149,26 @@ export function BookingsPage() {
                         </button>
                       )}
                       {b.status === 'COMPLETED' && reviewedIds.has(b.id) && (
-                        <span className="text-xs text-gray-400">Reviewed</span>
+                        <span className="text-xs text-gray-400">Reviewed ✓</span>
                       )}
                       {b.status === 'CONFIRMED' && !started && (
-                        <button
-                          onClick={() => { if (confirm('Cancel this booking?')) cancelMutation.mutate(b.id); }}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Cancel
-                        </button>
+                        confirmPending?.id === b.id && confirmPending.action === 'cancel' ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">Cancel booking?</span>
+                            <button
+                              onClick={() => { cancelMutation.mutate(b.id); setConfirmPending(null); }}
+                              className="text-xs font-medium text-red-600 hover:underline"
+                            >Yes</button>
+                            <button onClick={() => setConfirmPending(null)} className="text-xs text-gray-400 hover:underline">No</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmPending({ id: b.id, action: 'cancel' })}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
