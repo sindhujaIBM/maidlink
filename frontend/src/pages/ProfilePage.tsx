@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMyProfile, updateMyProfile } from '../api/users';
 import { Layout } from '../components/layout/Layout';
@@ -27,6 +28,7 @@ export function ProfilePage() {
 
   return (
     <Layout>
+      <Helmet><title>My Profile — MaidLink</title></Helmet>
       <div className="max-w-2xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listBookings, getBooking, cancelBooking, completeBooking, createReview } from '../api/bookings';
 import { Layout } from '../components/layout/Layout';
@@ -78,6 +79,7 @@ export function BookingsPage() {
 
   return (
     <Layout>
+      <Helmet><title>My Bookings — MaidLink</title></Helmet>
       <div className="max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">My Bookings</h1>
 

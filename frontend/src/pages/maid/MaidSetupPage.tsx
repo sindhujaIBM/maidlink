@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -179,6 +180,7 @@ export function MaidSetupPage() {
 
   return (
     <Layout>
+      <Helmet><title>{isNew ? 'Create Maid Profile' : 'Edit Maid Profile'} — MaidLink</title></Helmet>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           {isNew ? 'Create Maid Profile' : 'Edit Maid Profile'}

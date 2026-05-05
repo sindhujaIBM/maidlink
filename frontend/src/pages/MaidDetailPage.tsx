@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMaid } from '../api/users';
@@ -112,15 +113,19 @@ export function MaidDetailPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>{maid.user.fullName} — MaidLink</title>
+        <meta name="description" content={`Book ${maid.user.fullName} for home cleaning in Calgary. ${maid.bio || 'Admin-verified residential cleaner.'}`} />
+      </Helmet>
       <div className="max-w-5xl mx-auto">
       <button
-        onClick={() => navigate(-1)}
+        onClick={() => navigate('/maids')}
         className="mb-4 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
-        Back
+        Back to maids
       </button>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Helmet } from 'react-helmet-async';
 import { getEarnings } from '../../api/bookings';
 import { Layout } from '../../components/layout/Layout';
 import { Spinner } from '../../components/ui/Spinner';
@@ -27,6 +28,7 @@ export function EarningsPage() {
 
   return (
     <Layout>
+      <Helmet><title>Earnings — MaidLink</title></Helmet>
       <div className="max-w-4xl mx-auto space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
 

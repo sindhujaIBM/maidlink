@@ -1,4 +1,5 @@
 import { Navigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { Layout } from '../components/layout/Layout';
 import { Link } from 'react-router-dom';
@@ -24,6 +25,7 @@ export function DashboardPage() {
 
   return (
     <Layout>
+      <Helmet><title>Dashboard — MaidLink</title></Helmet>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Welcome back, {user.fullName.split(' ')[0]}! 👋

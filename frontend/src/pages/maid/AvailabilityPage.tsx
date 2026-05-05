@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listMyAvailability,
@@ -102,6 +103,7 @@ export function AvailabilityPage() {
 
   return (
     <Layout>
+      <Helmet><title>Manage Availability — MaidLink</title></Helmet>
       <div className="max-w-3xl mx-auto space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Manage Availability</h1>
 

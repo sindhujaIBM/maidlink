@@ -101,8 +101,8 @@ Maid application intake → admin notification is live. Still missing: booking c
 #### ~~Cleaning type filter misleads users~~ ✅ Fixed — `MaidListPage`
 Relabelled to "Type of cleaning needed", added helper text "Pre-fills the booking form — all maids offer all types", removed from active filter chips, excluded from `hasFilters`. Cleaning type still pre-fills the booking form via URL param.
 
-#### MaidDetailPage: `navigate(-1)` breaks on direct links
-Back button uses `navigate(-1)` — if the user arrives from an external link or bookmark, this takes them somewhere outside the app. Fix: `navigate('/maids')` as a default, or check `document.referrer` first.
+#### ~~MaidDetailPage: `navigate(-1)` breaks on direct links~~ ✅ Fixed
+Back button changed to `navigate('/maids')`. Label updated to "Back to maids". Helmet title added using maid's name.
 
 #### Cancellation Policy & Refund Logic
 Free cancellation 48h+, 50% within 24h, no refund same-day. Protects maid income. Requires Payments first.
@@ -111,8 +111,8 @@ Free cancellation 48h+, 50% within 24h, no refund same-day. Protects maid income
 
 ### P2 — Retention & Growth
 
-#### Missing `<title>` on authenticated pages
-`BookingsPage`, `DashboardPage`, `ProfilePage`, `MaidSetupPage`, `AvailabilityPage`, `EarningsPage` have no Helmet title — browser tab shows the last-set title (usually the home page). Add `<Helmet><title>Page Name — MaidLink</title></Helmet>` to each, or add a `title` prop to `Layout`.
+#### ~~Missing `<title>` on authenticated pages~~ ✅ Fixed
+Added `<Helmet>` titles to all 6 pages: My Bookings, Dashboard, My Profile, Create/Edit Maid Profile, Manage Availability, Earnings.
 
 #### Slot picker is a cramped scroll box — `MaidDetailPage`
 `max-h-48 overflow-y-scroll` inside a sticky panel is hard to scan across many slots. Group by date with date headers, or show a compact calendar where clicking a date expands that day's slots.
