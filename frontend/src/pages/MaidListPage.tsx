@@ -75,7 +75,7 @@ export function MaidListPage() {
 
   const hasFilters = Object.entries(applied).some(([k, v]) =>
     k !== 'cleaningType' ? Boolean(v) : false
-  ) || Boolean(applied.cleaningType);
+  );
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
@@ -167,17 +167,18 @@ export function MaidListPage() {
               </div>
             </div>
 
-            {/* Cleaning type (pre-fills booking form, doesn't filter maids) */}
+            {/* Cleaning type — pre-fills the booking form, does not filter results */}
             <div>
-              <label className="label">Cleaning type</label>
+              <label className="label">Type of cleaning needed</label>
               <select
                 className="input"
                 value={draft.cleaningType}
                 onChange={e => setDraft(d => ({ ...d, cleaningType: e.target.value as CleaningType | '' }))}
               >
-                <option value="">Any</option>
+                <option value="">Not sure yet</option>
                 {CLEANING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
+              <p className="text-xs text-gray-400 mt-1">Pre-fills the booking form — all maids offer all types.</p>
             </div>
           </div>
 
@@ -197,7 +198,6 @@ export function MaidListPage() {
             {applied.time         && <FilterChip label={`From: ${applied.time}`} />}
             {applied.maxRate      && <FilterChip label={`Max: $${applied.maxRate}/hr`} />}
             {applied.minRating    ? <FilterChip label={`Rating: ${applied.minRating}+★`} /> : null}
-            {applied.cleaningType && <FilterChip label={applied.cleaningType} />}
           </div>
         )}
 

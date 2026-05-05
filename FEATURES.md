@@ -53,6 +53,9 @@ _Last updated: 2026-05-01_
 
 ### Admin
 - ✅ **Admin maid approval queue** — Approve/reject maid profiles; verification badge management
+- ✅ **Admin bookings list** — Paginated list of all bookings filterable by status; joins customer + maid user records
+- ✅ **Admin users list** — All users with roles
+- ✅ **Admin maid applications** — List, approve, reject applications; pre-signed S3 URL for ID doc review
 - ✅ **Maid application email notification** — SES email sent to muni@maidlink.ca on every become-a-maid form submission; includes all applicant fields; fire-and-forget (does not block 201 response)
 - ✅ **Admin estimator feedback (human-in-the-loop)** — Admin can review any customer estimate, optionally adjust hours, add a specialist note, and optionally send an SES email to the customer; `admin_feedback` JSONB stored in DB; "Reviewed ✓" badge on admin and customer history cards; customer sees adjusted hours + specialist note in their estimate history
 
@@ -85,9 +88,6 @@ _Last updated: 2026-05-01_
 
 ### P0 — Blocking Revenue
 
-#### Admin service has no handlers
-`services/admin/` is a stub (only `package.json` + `tsconfig.json`). `AdminBookingsPage.tsx` calls `listAdminBookings` which does not exist in the repo — the admin bookings page is broken in production. Needs: `listAdminBookings` handler, route registration in `serverless.yml`, `withAuth(['ADMIN'])` guard, and basic cursor pagination.
-
 #### Payments (Stripe)
 `total_price` is calculated and stored but no money moves. Stripe Payment Intents: hold at booking time, capture on completion, refund on cancellation.
 
@@ -98,8 +98,8 @@ Maid application intake → admin notification is live. Still missing: booking c
 
 ### P1 — Core Trust
 
-#### Cleaning type filter misleads users — `MaidListPage`
-The "Cleaning type" dropdown appears as an active filter chip after search but doesn't actually filter maids — it only pre-fills the booking form. Either wire it up server-side or remove it from the filter form entirely and pass it silently as a query param.
+#### ~~Cleaning type filter misleads users~~ ✅ Fixed — `MaidListPage`
+Relabelled to "Type of cleaning needed", added helper text "Pre-fills the booking form — all maids offer all types", removed from active filter chips, excluded from `hasFilters`. Cleaning type still pre-fills the booking form via URL param.
 
 #### MaidDetailPage: `navigate(-1)` breaks on direct links
 Back button uses `navigate(-1)` — if the user arrives from an external link or bookmark, this takes them somewhere outside the app. Fix: `navigate('/maids')` as a default, or check `document.referrer` first.
