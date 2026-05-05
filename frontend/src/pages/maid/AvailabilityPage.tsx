@@ -90,10 +90,10 @@ export function AvailabilityPage() {
     addOverride.mutate();
   }
 
-  if (isLoading) return <Layout><div className="flex justify-center py-16"><Spinner /></div></Layout>;
+  if (isLoading) return <Layout hideChat><div className="flex justify-center py-16"><Spinner /></div></Layout>;
 
   if (isError) return (
-    <Layout>
+    <Layout hideChat>
       <div className="max-w-3xl mx-auto py-16 text-center">
         <p className="text-red-600 font-medium">Failed to load availability.</p>
         <p className="text-sm text-gray-500 mt-1">Please refresh the page and try again.</p>
@@ -102,7 +102,7 @@ export function AvailabilityPage() {
   );
 
   return (
-    <Layout>
+    <Layout hideChat>
       <Helmet><title>Manage Availability — MaidLink</title></Helmet>
       <div className="max-w-3xl mx-auto space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Manage Availability</h1>

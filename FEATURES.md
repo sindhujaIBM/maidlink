@@ -117,14 +117,14 @@ Added `<Helmet>` titles to all 6 pages: My Bookings, Dashboard, My Profile, Crea
 #### Slot picker is a cramped scroll box — `MaidDetailPage`
 `max-h-48 overflow-y-scroll` inside a sticky panel is hard to scan across many slots. Group by date with date headers, or show a compact calendar where clicking a date expands that day's slots.
 
-#### Bio character counter + rate range hint — `MaidSetupPage`
-Bio `<textarea>` has no `maxLength` and no live counter. Hourly rate has no suggested range. Add `maxLength={500}`, a live `X / 500` counter, and helper text like `"$25–$50/hr is typical in Calgary"`.
+#### ~~Bio character counter + rate range hint~~ ✅ Fixed — `MaidSetupPage`
+Added `maxLength={500}`, live counter (turns amber at 450+), and `"$25–$50/hr is typical in Calgary"` helper text.
 
-#### MaidCard "No bio yet." placeholder text
-`maid.bio || 'No bio yet.'` is developer copy, not customer copy. Replace with `"Available for bookings in Calgary"` or omit the line entirely when bio is empty.
+#### ~~MaidCard "No bio yet." placeholder text~~ ✅ Fixed — `MaidCard`
+Bio line now omitted entirely when empty.
 
-#### StarRating renders `<button>` when non-interactive — `StarRating.tsx`
-When `interactive={false}`, the component still renders `<button>` elements which are in the tab order. Render `<span>` instead so display-only stars are inert in the DOM.
+#### ~~StarRating renders `<button>` when non-interactive~~ ✅ Fixed — `StarRating.tsx`
+Renders `<span aria-hidden>` when `interactive` is false; `<button>` only for interactive ratings.
 
 #### Recurring Bookings
 "Every Friday at 10am" — the #1 retention driver. `booking_series` table + interval logic + auto-generation of future bookings.
@@ -139,11 +139,14 @@ Save address and favourite maids. Auto-populate address on booking form. "Favour
 #### Two NavBar implementations — `HomePage` vs `Navbar.tsx`
 `HomePage.tsx` has its own local `NavBar` (anchor links, no beta banner, no chat widget). Shared `Navbar` is a completely separate component. Beta banner and `SchedulerChat` never appear on the home page; nav changes need to be made in two places. Extract the anchor-link nav into a prop/mode on the shared `Navbar`, or document the intentional split.
 
-#### `useIsMobile` hook duplicated — `HomePage.tsx` + `Navbar.tsx`
-Defined identically in both files. Extract to `src/hooks/useIsMobile.ts` and add ~150ms debounce to the resize listener.
+#### ~~`useIsMobile` hook duplicated~~ ✅ Fixed — `src/hooks/useIsMobile.ts`
+Extracted to shared hook with 150ms debounce. `Navbar.tsx` and `HomePage.tsx` both import from there.
 
-#### `SchedulerChat` always mounted in Layout
-Every page that uses `Layout` mounts the floating chat widget — distracting on focused forms (maid application, availability setup). Add a `hideChat?: boolean` prop to `Layout`.
+#### ~~`SchedulerChat` always mounted in Layout~~ ✅ Fixed
+Added `hideChat?: boolean` to `Layout`. `MaidSetupPage` and `AvailabilityPage` now pass `hideChat`.
+
+#### ~~Verify `animate-marquee` Tailwind keyframe~~ ✅ Already defined
+`tailwind.config.ts` has the correct `keyframes.marquee` and `animation.marquee` entries.
 
 #### Verify `animate-marquee` Tailwind keyframe — `tailwind.config.js`
 `animate-marquee` is not a built-in Tailwind utility. If `keyframes.marquee` isn't defined in the config, the beta banner renders static. Confirm the config has the keyframe or the animation plays correctly in production.

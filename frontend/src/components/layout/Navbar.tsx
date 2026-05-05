@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../../api/auth';
 import { Wordmark } from './Wordmark';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const C = {
   teal:  '#1F6E64',
@@ -10,16 +11,6 @@ const C = {
   line:  '#E6E1D3',
   cream: '#FBF7EE',
 };
-
-function useIsMobile(bp = 768) {
-  const [mobile, setMobile] = useState(() => window.innerWidth < bp);
-  useEffect(() => {
-    const fn = () => setMobile(window.innerWidth < bp);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, [bp]);
-  return mobile;
-}
 
 export function Navbar() {
   const { user, isAuthenticated, logout, hasRole } = useAuth();

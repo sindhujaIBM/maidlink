@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import { calcHours, getRate } from '../lib/estimatorCalc';
 import type { CleaningType, HouseCondition } from '../lib/estimatorCalc';
 import { Stepper, ChipGroup, SQFT_PRESETS } from '../components/ui/FormControls';
 import { Wordmark } from '../components/layout/Wordmark';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // ── Brand tokens ──────────────────────────────────────────────
 const C = {
@@ -24,17 +25,6 @@ const C = {
 
 const serif = "'Fraunces', Georgia, serif";
 const sans  = "'Inter', system-ui, sans-serif";
-
-// ── Responsive hook ───────────────────────────────────────────
-function useIsMobile(bp = 768) {
-  const [mobile, setMobile] = useState(() => window.innerWidth < bp);
-  useEffect(() => {
-    const fn = () => setMobile(window.innerWidth < bp);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, [bp]);
-  return mobile;
-}
 
 // ── SVG icon set ──────────────────────────────────────────────
 function IconArrow({ size = 16, color = 'currentColor' }) {

@@ -176,10 +176,10 @@ export function MaidSetupPage() {
     }
   }
 
-  if (isLoading) return <Layout><div className="flex justify-center py-16"><Spinner /></div></Layout>;
+  if (isLoading) return <Layout hideChat><div className="flex justify-center py-16"><Spinner /></div></Layout>;
 
   return (
-    <Layout>
+    <Layout hideChat>
       <Helmet><title>{isNew ? 'Create Maid Profile' : 'Edit Maid Profile'} — MaidLink</title></Helmet>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -290,10 +290,14 @@ export function MaidSetupPage() {
         {/* ── Profile details form ─────────────────────────────────────── */}
         <form onSubmit={handleSubmit} className="card space-y-5">
           <div>
-            <label className="label">Bio</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="label mb-0">Bio</label>
+              <span className={`text-xs ${bio.length > 450 ? 'text-amber-600' : 'text-gray-400'}`}>{bio.length} / 500</span>
+            </div>
             <textarea
               className="input"
               rows={3}
+              maxLength={500}
               value={bio}
               onChange={e => setBio(e.target.value)}
               placeholder="Tell customers about your experience, approach, and what makes you great…"
@@ -315,6 +319,7 @@ export function MaidSetupPage() {
                 placeholder="35.00"
               />
             </div>
+            <p className="text-xs text-gray-400 mt-1">$25–$50/hr is typical in Calgary</p>
           </div>
 
           <div>

@@ -4,11 +4,12 @@ import { SchedulerChat } from '../scheduler/SchedulerChat';
 
 interface LayoutProps {
   children: React.ReactNode;
+  hideChat?: boolean;
 }
 
 const MARQUEE_TEXT = '🚧 MaidLink is currently in private beta — live booking is not yet available. We\'re working hard to launch soon. Stay tuned! · ';
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, hideChat }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#FBF7EE' }}>
       <div className="bg-amber-400 text-amber-900 text-sm font-medium py-2 overflow-hidden whitespace-nowrap">
@@ -23,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
       <footer className="border-t border-brand-200 py-6 text-center text-sm text-brand-500">
         © {new Date().getFullYear()} MaidLink · Calgary Home Cleaning
       </footer>
-      <SchedulerChat />
+      {!hideChat && <SchedulerChat />}
     </div>
   );
 }

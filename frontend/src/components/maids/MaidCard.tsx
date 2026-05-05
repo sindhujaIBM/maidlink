@@ -35,7 +35,7 @@ export function MaidCard({ maid, detailLink }: MaidCardProps) {
             <h3 className="font-semibold text-gray-900">{maid.user.fullName}</h3>
             {maid.isVerified && <VerifiedBadge />}
           </div>
-          <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{maid.bio || 'No bio yet.'}</p>
+          {maid.bio && <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{maid.bio}</p>}
 
           <div className="mt-2 flex items-center gap-1.5">
             <StarRating rating={avgRating} size="sm" />
