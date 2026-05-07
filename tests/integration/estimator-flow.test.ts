@@ -153,25 +153,41 @@ describe('POST /users/me/estimator/analyze — validation', () => {
     expect(JSON.parse(res.body).error.message).toMatch(/room/i);
   });
 
-  it('returns 400 when total photos < 5 (MIN_PHOTOS)', async () => {
+  it('returns 400 for 1 room with < 2 photos (single-room minimum)', async () => {
     const user  = await seedUser(pool);
     const token = makeToken(user.id);
     const body  = validAnalyzeBody({
-      rooms: [{ room: 'Kitchen', photoS3Keys: ['estimator-photos/uid/1.jpg', 'estimator-photos/uid/2.jpg'] }],
+      rooms: [{ room: 'Kitchen', photoS3Keys: ['estimator-photos/uid/1.jpg'] }],
+    });
+    const res = await analyzeHandler(makeEvent({ token, body }), {} as never);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error.message).toMatch(/2 photos/i);
+  });
+
+  it('returns 400 for 2+ rooms with < 5 total photos', async () => {
+    const user  = await seedUser(pool);
+    const token = makeToken(user.id);
+    // 2 rooms × 2 photos = 4 total, below the 5-photo minimum for multi-room
+    const body  = validAnalyzeBody({
+      rooms: [
+        { room: 'Kitchen',    photoS3Keys: ['estimator-photos/uid/1.jpg', 'estimator-photos/uid/2.jpg'] },
+        { room: 'Bedroom 1',  photoS3Keys: ['estimator-photos/uid/3.jpg', 'estimator-photos/uid/4.jpg'] },
+      ],
     });
     const res = await analyzeHandler(makeEvent({ token, body }), {} as never);
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error.message).toMatch(/5 photos/i);
   });
 
-  it('returns 400 when total photos > 10 (MAX_PHOTOS)', async () => {
+  it('returns 400 when total photos exceed rooms × 5', async () => {
     const user  = await seedUser(pool);
     const token = makeToken(user.id);
-    const keys  = Array.from({ length: 11 }, (_, i) => `estimator-photos/uid/${i}.jpg`);
+    // 1 room × 5 = 5 max; 6 photos should fail
+    const keys  = Array.from({ length: 6 }, (_, i) => `estimator-photos/uid/${i}.jpg`);
     const body  = validAnalyzeBody({ rooms: [{ room: 'Kitchen', photoS3Keys: keys }] });
     const res   = await analyzeHandler(makeEvent({ token, body }), {} as never);
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body).error.message).toMatch(/10 photos/i);
+    expect(JSON.parse(res.body).error.message).toMatch(/5 per room/i);
   });
 
   it('returns 400 when a photo key does not start with estimator-photos/', async () => {

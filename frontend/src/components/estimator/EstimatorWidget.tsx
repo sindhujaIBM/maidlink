@@ -587,13 +587,17 @@ export function EstimatorWidget() {
 
 
   const MIN_PHOTOS_PER_ROOM = 2;
-  const allPhotos     = Object.values(roomPhotos).flat();
-  const totalReady    = allPhotos.filter(p => p.s3Key !== null).length;
-  const roomsReady    = rooms.filter(r =>
+  const allPhotos    = Object.values(roomPhotos).flat();
+  const totalReady   = allPhotos.filter(p => p.s3Key !== null && !p.failed).length;
+  const roomsReady   = rooms.filter(r =>
     (roomPhotos[r] ?? []).filter(p => p.s3Key !== null && !p.failed).length >= MIN_PHOTOS_PER_ROOM
   ).length;
-  // Single-room bookings only need 2 uploaded photos to enable analysis.
-  const canAnalyze = rooms.length > 0 && roomsReady === rooms.length && !uploading;
+  // 1 room → min 2 total; 2+ rooms → min 5 total; all rooms must also have ≥ 2 each.
+  const minTotalRequired = rooms.length === 1 ? 2 : 5;
+  const canAnalyze = rooms.length > 0
+    && roomsReady === rooms.length
+    && totalReady >= minTotalRequired
+    && !uploading;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -775,8 +779,10 @@ export function EstimatorWidget() {
       const roomsData = rooms
         .filter(r => (roomPhotos[r] ?? []).some(p => p.s3Key !== null))
         .map(r => ({
-          room:         r,
-          photoS3Keys: (roomPhotos[r] ?? []).map(p => p.s3Key).filter(Boolean) as string[],
+          room:        r,
+          photoS3Keys: (roomPhotos[r] ?? [])
+            .filter(p => p.s3Key !== null)
+            .map(p => p.s3Key as string),
         }));
 
       const sqftRange = sqft < 500 ? '<500'
@@ -1677,7 +1683,9 @@ export function EstimatorWidget() {
                               </svg>
                               {canAnalyze
                                 ? `Analyse ${totalReady} photo${totalReady !== 1 ? 's' : ''} with AI →`
-                                : `${rooms.length - roomsReady} room${rooms.length - roomsReady === 1 ? '' : 's'} still need ${MIN_PHOTOS_PER_ROOM} photos`}
+                                : rooms.length - roomsReady > 0
+                                  ? `${rooms.length - roomsReady} room${rooms.length - roomsReady === 1 ? '' : 's'} still need ${MIN_PHOTOS_PER_ROOM} photos`
+                                  : `${minTotalRequired - totalReady} more photo${minTotalRequired - totalReady === 1 ? '' : 's'} needed`}
                             </>}
                       </button>
                     </div>

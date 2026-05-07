@@ -1,9 +1,44 @@
 #!/bin/sh
-# Run unit tests before every commit. Fast (<1s), no DB or network needed.
-echo "⏳ Running unit tests…"
+# Pre-commit: unit → integration → E2E
+# All three must pass before a commit is accepted.
+#
+# Integration tests require Docker Postgres:   npm run db:up
+# E2E tests require the Vite dev server or will start one automatically.
+
+set -e
+
+echo ""
+echo "╔══════════════════════════════════════╗"
+echo "║        Pre-commit test suite         ║"
+echo "╚══════════════════════════════════════╝"
+
+# ── 1. Unit tests (fast, no deps) ────────────────────────────────────────────
+echo ""
+echo "▶ Unit tests…"
 npm test --silent
-if [ $? -ne 0 ]; then
-  echo "❌ Unit tests failed — commit aborted. Fix the failures and try again."
+echo "✅ Unit tests passed"
+
+# ── 2. Integration tests (requires Docker Postgres) ───────────────────────────
+echo ""
+echo "▶ Integration tests…"
+if ! npm run test:integration --silent 2>&1; then
+  echo ""
+  echo "❌ Integration tests failed."
+  echo "   Is Docker Postgres running?  →  npm run db:up"
   exit 1
 fi
-echo "✅ All tests passed."
+echo "✅ Integration tests passed"
+
+# ── 3. E2E tests (Playwright — starts Vite if not already running) ────────────
+echo ""
+echo "▶ E2E tests…"
+if ! npm run test:e2e 2>&1; then
+  echo ""
+  echo "❌ E2E tests failed. Run  npx playwright test --ui  to debug."
+  exit 1
+fi
+echo "✅ E2E tests passed"
+
+echo ""
+echo "✅ All tests passed — committing."
+echo ""

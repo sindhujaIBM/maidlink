@@ -23,8 +23,7 @@ import { getObjectAsBase64 } from '../lib/s3';
 const ses = new SESClient({ region: 'us-east-1' });
 
 const DAILY_LIMIT     = 5;
-const MIN_PHOTOS      = 5;
-const MAX_PHOTOS      = 10;
+const MAX_PHOTOS_PER_ROOM = 5;   // per-room cap; total cap = rooms.length × this
 const bedrock         = new BedrockRuntimeClient({ region: 'us-west-2' });
 const NOVA_LITE_MODEL = 'us.amazon.nova-lite-v1:0';
 
@@ -275,8 +274,10 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   const allKeys    = rooms.flatMap(r => r.photoS3Keys);
   const totalPhotos = allKeys.length;
 
-  if (totalPhotos < MIN_PHOTOS) throw new ValidationError(`At least ${MIN_PHOTOS} photos are required`);
-  if (totalPhotos > MAX_PHOTOS) throw new ValidationError(`Maximum ${MAX_PHOTOS} photos allowed`);
+  const minPhotos = rooms.length === 1 ? 2 : 5;
+  const maxPhotos = rooms.length * MAX_PHOTOS_PER_ROOM;
+  if (totalPhotos < minPhotos) throw new ValidationError(`At least ${minPhotos} photos are required`);
+  if (totalPhotos > maxPhotos) throw new ValidationError(`Maximum ${maxPhotos} photos allowed (${MAX_PHOTOS_PER_ROOM} per room)`);
 
   for (const key of allKeys) {
     if (!key.startsWith('estimator-photos/')) throw new ValidationError('Invalid photo key');
