@@ -8,19 +8,15 @@
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { getPool, signToken, toErrorResponse, ValidationError, NotFoundError } from '@maidlink/shared';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Credentials': 'true',
-  'Content-Type': 'application/json',
-};
+import { getPool, signToken, toErrorResponse, corsOrigin, ValidationError, NotFoundError } from '@maidlink/shared';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const origin = corsOrigin(event);
+  const corsHeaders = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Content-Type': 'application/json' };
   if (process.env.NODE_ENV === 'production') {
     return {
       statusCode: 403,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({ error: { message: 'Not available in production' } }),
     };
   }
@@ -58,7 +54,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({
         data: {
           accessToken,
@@ -75,6 +71,6 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }),
     };
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, origin);
   }
 }

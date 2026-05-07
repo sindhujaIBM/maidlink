@@ -8,8 +8,19 @@ type AuthenticatedHandler = (
   auth: AuthContext
 ) => Promise<APIGatewayProxyResult>;
 
+const ALLOWED_ORIGINS = new Set([
+  'https://maidlink.ca',
+  'https://www.maidlink.ca',
+  'http://localhost:5173',
+]);
+
+export function corsOrigin(event: { headers?: Record<string, string | undefined> | null }): string {
+  const origin = event.headers?.origin ?? event.headers?.Origin ?? '';
+  return ALLOWED_ORIGINS.has(origin) ? origin : 'https://maidlink.ca';
+}
+
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://maidlink.ca',
   'Access-Control-Allow-Credentials': 'true',
   'Content-Type': 'application/json',
 };
@@ -29,6 +40,7 @@ export function withAuth(
   requiredRoles?: string[]
 ) {
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const origin = corsOrigin(event);
     try {
       const payload = verifyToken(event.headers?.Authorization || event.headers?.authorization);
 
@@ -48,9 +60,10 @@ export function withAuth(
         }
       }
 
-      return await fn(event, auth);
+      const result = await fn(event, auth);
+      return { ...result, headers: { ...result.headers, 'Access-Control-Allow-Origin': origin } };
     } catch (err) {
-      return toErrorResponse(err);
+      return toErrorResponse(err, origin);
     }
   };
 }

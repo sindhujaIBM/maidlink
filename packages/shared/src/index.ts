@@ -13,7 +13,7 @@ export * from './jwt';
 // Database
 export * from './db/client';
 
-// Middleware
+// Middleware + CORS
 export * from './middleware/withAuth';
 
 // Validation

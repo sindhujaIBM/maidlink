@@ -41,13 +41,13 @@ export class ConflictError extends AppError {
 }
 
 /** Formats any error into a Lambda-friendly API Gateway response body */
-export function toErrorResponse(err: unknown): {
+export function toErrorResponse(err: unknown, origin = 'https://maidlink.ca'): {
   statusCode: number;
   body: string;
   headers: Record<string, string>;
 } {
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Credentials': 'true',
     'Content-Type': 'application/json',
   };

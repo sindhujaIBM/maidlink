@@ -35,10 +35,6 @@ provider:
       statements:
         - Effect: Allow
           Action:
-            - secretsmanager:GetSecretValue
-          Resource: '*'
-        - Effect: Allow
-          Action:
             - s3:GetObject
           Resource:
             - arn:aws:s3:::${env:PHOTOS_BUCKET}/*
@@ -50,7 +46,7 @@ functions:
       - http:
           path: /admin/maids
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   approveMaid:
     handler: src/handlers/maids.approveHandler
@@ -58,7 +54,7 @@ functions:
       - http:
           path: /admin/maids/{maidId}/approve
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   rejectMaid:
     handler: src/handlers/maids.rejectHandler
@@ -66,7 +62,7 @@ functions:
       - http:
           path: /admin/maids/{maidId}/reject
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   verifyMaid:
     handler: src/handlers/maids.verifyHandler
@@ -74,7 +70,7 @@ functions:
       - http:
           path: /admin/maids/{maidId}/verify
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   unverifyMaid:
     handler: src/handlers/maids.unverifyHandler
@@ -82,7 +78,7 @@ functions:
       - http:
           path: /admin/maids/{maidId}/unverify
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getMaidIdDocUrl:
     handler: src/handlers/maids.getIdDocUrlHandler
@@ -90,7 +86,7 @@ functions:
       - http:
           path: /admin/maids/{maidId}/id-doc-url
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listAdminBookings:
     handler: src/handlers/bookings.listHandler
@@ -98,7 +94,7 @@ functions:
       - http:
           path: /admin/bookings
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listAdminUsers:
     handler: src/handlers/users.listHandler
@@ -106,7 +102,7 @@ functions:
       - http:
           path: /admin/users
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listMaidApplications:
     handler: src/handlers/maidApplications.listHandler
@@ -114,7 +110,7 @@ functions:
       - http:
           path: /admin/maid-applications
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   approveMaidApplication:
     handler: src/handlers/maidApplications.approveHandler
@@ -122,7 +118,7 @@ functions:
       - http:
           path: /admin/maid-applications/{id}/approve
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   rejectMaidApplication:
     handler: src/handlers/maidApplications.rejectHandler
@@ -130,7 +126,7 @@ functions:
       - http:
           path: /admin/maid-applications/{id}/reject
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getMaidApplicationIdDocUrl:
     handler: src/handlers/maidApplications.getIdDocUrlHandler
@@ -138,7 +134,7 @@ functions:
       - http:
           path: /admin/maid-applications/{id}/id-doc-url
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listEstimatorAnalyses:
     handler: src/handlers/estimatorAnalyses.listHandler
@@ -146,7 +142,7 @@ functions:
       - http:
           path: /admin/estimator/analyses
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   saveEstimatorFeedback:
     handler: src/handlers/estimatorAnalyses.feedbackHandler
@@ -154,7 +150,7 @@ functions:
       - http:
           path: /admin/estimator/analyses/{id}/feedback
           method: patch
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
 custom:
   esbuild:

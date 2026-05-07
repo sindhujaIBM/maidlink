@@ -25,7 +25,8 @@ const ses = new SESClient({ region: 'us-east-1' });
 const DAILY_LIMIT     = 5;
 const MAX_PHOTOS_PER_ROOM = 5;   // per-room cap; total cap = rooms.length × this
 const bedrock         = new BedrockRuntimeClient({ region: 'us-west-2' });
-const NOVA_LITE_MODEL = 'us.amazon.nova-lite-v1:0';
+const NOVA_LITE_MODEL  = 'us.amazon.nova-lite-v1:0';
+const HAIKU_MODEL      = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 interface RoomInput {
   room:         string;
@@ -157,15 +158,13 @@ Instructions:
 6. Assess photo coverage and populate coverageWarnings for any room with fewer than 3 distinct angles.`;
 }
 
-// ── Nova Lite invocation with room-labelled images ────────────────────────────
+// ── Model invocations ─────────────────────────────────────────────────────────
 
-async function invokeNovaLite(
-  userPrompt: string,
-  roomImages: Array<{ room: string; images: Array<{ base64: string; mediaType: string }> }>,
-): Promise<string> {
+type RoomImages = Array<{ room: string; images: Array<{ base64: string; mediaType: string }> }>;
+
+async function invokeNovaLite(userPrompt: string, roomImages: RoomImages): Promise<string> {
   const content: unknown[] = [];
 
-  // Interleave room labels with their photos so the AI knows which room each image belongs to
   for (const { room, images } of roomImages) {
     content.push({ text: `--- ${room} ---` });
     for (const img of images) {
@@ -195,6 +194,53 @@ async function invokeNovaLite(
 
   const decoded = JSON.parse(Buffer.from(res.body).toString());
   return decoded.output?.message?.content?.[0]?.text ?? '';
+}
+
+async function invokeHaiku(userPrompt: string, roomImages: RoomImages): Promise<string> {
+  const content: unknown[] = [];
+
+  for (const { room, images } of roomImages) {
+    content.push({ type: 'text', text: `--- ${room} ---` });
+    for (const img of images) {
+      content.push({
+        type: 'image',
+        source: {
+          type:       'base64',
+          media_type: img.mediaType || 'image/jpeg',
+          data:       img.base64,
+        },
+      });
+    }
+  }
+
+  content.push({ type: 'text', text: userPrompt });
+
+  const payload = {
+    anthropic_version: 'bedrock-2023-05-31',
+    system:            SYSTEM_PROMPT,
+    messages:          [{ role: 'user', content }],
+    max_tokens:        2000,
+    temperature:       0.2,
+  };
+
+  const res = await bedrock.send(new InvokeModelCommand({
+    modelId:     HAIKU_MODEL,
+    contentType: 'application/json',
+    accept:      'application/json',
+    body:        Buffer.from(JSON.stringify(payload)),
+  }));
+
+  const decoded = JSON.parse(Buffer.from(res.body).toString());
+  return decoded.content?.[0]?.text ?? '';
+}
+
+async function invokeWithFallback(userPrompt: string, roomImages: RoomImages): Promise<string> {
+  try {
+    return await invokeNovaLite(userPrompt, roomImages);
+  } catch (err) {
+    console.warn('Nova Lite failed, falling back to Haiku 4.5:', (err as Error).message);
+    return invokeHaiku(userPrompt, roomImages);
+  }
 }
 
 // ── Notification email ────────────────────────────────────────────────────────
@@ -312,7 +358,7 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   );
 
   const prompt  = buildUserPrompt(body);
-  const rawText = await invokeNovaLite(prompt, roomImages);
+  const rawText = await invokeWithFallback(prompt, roomImages);
 
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Model returned unexpected format');

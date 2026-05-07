@@ -38,22 +38,20 @@ provider:
           Action:
             - s3:PutObject
             - s3:GetObject
-            - s3:DeleteObject
           Resource:
             - arn:aws:s3:::${env:PHOTOS_BUCKET, 'maidlink-photos-local'}/*
         - Effect: Allow
           Action:
             - ses:SendEmail
-            - ses:SendRawEmail
           Resource: '*'
         - Effect: Allow
           Action:
             - bedrock:InvokeModel
           Resource:
             - arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0
-            - arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0
             - arn:aws:bedrock:*:*:inference-profile/us.amazon.nova-lite-v1:0
-            - arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0
+            - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+            - arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
 
 functions:
   getMyProfile:
@@ -62,7 +60,7 @@ functions:
       - http:
           path: /users/me
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   updateMyProfile:
     handler: src/handlers/profile.updateHandler
@@ -70,7 +68,7 @@ functions:
       - http:
           path: /users/me
           method: put
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   createMaidProfile:
     handler: src/handlers/maidProfile.createHandler
@@ -78,7 +76,7 @@ functions:
       - http:
           path: /users/me/maid-profile
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getMyMaidProfile:
     handler: src/handlers/maidProfile.getHandler
@@ -86,7 +84,7 @@ functions:
       - http:
           path: /users/me/maid-profile
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   updateMyMaidProfile:
     handler: src/handlers/maidProfile.updateHandler
@@ -94,7 +92,7 @@ functions:
       - http:
           path: /users/me/maid-profile
           method: put
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getPhotoUploadUrl:
     handler: src/handlers/photoUpload.handler
@@ -102,7 +100,7 @@ functions:
       - http:
           path: /users/me/photo-upload-url
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getIdDocUploadUrl:
     handler: src/handlers/idDocUpload.handler
@@ -110,7 +108,7 @@ functions:
       - http:
           path: /users/me/id-doc-upload-url
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listMaids:
     handler: src/handlers/maids.listHandler
@@ -118,7 +116,7 @@ functions:
       - http:
           path: /users/maids
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getMaid:
     handler: src/handlers/maids.getOneHandler
@@ -126,7 +124,7 @@ functions:
       - http:
           path: /users/maids/{maidId}
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getEstimatorPhotoUploadUrl:
     handler: src/handlers/estimatorPhotoUpload.handler
@@ -134,7 +132,7 @@ functions:
       - http:
           path: /users/me/estimator-photo-upload-url
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   estimatorAnalyze:
     handler: src/handlers/estimatorAnalyze.handler
@@ -143,7 +141,7 @@ functions:
       - http:
           path: /users/me/estimator/analyze
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   estimatorHistory:
     handler: src/handlers/estimatorHistory.handler
@@ -151,7 +149,7 @@ functions:
       - http:
           path: /users/me/estimator/history
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   schedulerChat:
     handler: src/handlers/schedulerChat.handler
@@ -160,7 +158,7 @@ functions:
       - http:
           path: /users/me/scheduler/chat
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   submitMaidApplication:
     handler: src/handlers/maidApplication.submitHandler
@@ -168,7 +166,7 @@ functions:
       - http:
           path: /users/maid-applications
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listMaidApplications:
     handler: src/handlers/maidApplication.listHandler
@@ -176,7 +174,7 @@ functions:
       - http:
           path: /users/maid-applications
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   submitAlphaFeedback:
     handler: src/handlers/alphaFeedback.handler
@@ -184,7 +182,7 @@ functions:
       - http:
           path: /users/me/alpha-feedback
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
 custom:
   esbuild:

@@ -39,7 +39,7 @@ functions:
           path: /auth/google
           method: post
           cors:
-            origin: '*'
+            origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}"
             headers:
               - Content-Type
               - Authorization
@@ -52,7 +52,7 @@ functions:
           path: /auth/me
           method: get
           cors:
-            origin: '*'
+            origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}"
             headers:
               - Content-Type
               - Authorization
@@ -65,7 +65,7 @@ functions:
           path: /auth/admin-login
           method: post
           cors:
-            origin: '*'
+            origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}"
             headers:
               - Content-Type
               - Authorization
@@ -78,7 +78,7 @@ functions:
           path: /auth/dev-login
           method: post
           cors:
-            origin: '*'
+            origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}"
             headers:
               - Content-Type
               - Authorization
@@ -91,7 +91,7 @@ functions:
           path: /auth/refresh
           method: post
           cors:
-            origin: '*'
+            origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}"
             headers:
               - Content-Type
               - Authorization

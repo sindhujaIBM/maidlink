@@ -9,17 +9,13 @@
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { randomBytes } from 'crypto';
-import { getPool, signToken, toErrorResponse, ValidationError, UnauthorizedError } from '@maidlink/shared';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Credentials': 'true',
-  'Content-Type': 'application/json',
-};
+import { getPool, signToken, toErrorResponse, corsOrigin, ValidationError, UnauthorizedError } from '@maidlink/shared';
 
 const REFRESH_TTL_DAYS = 30;
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const origin = corsOrigin(event);
+  const corsHeaders = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Content-Type': 'application/json' };
   try {
     if (!event.body) throw new ValidationError('Request body is required');
 
@@ -79,7 +75,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
       return {
         statusCode: 200,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({
           data: {
             accessToken,
@@ -103,6 +99,6 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       client.release();
     }
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, origin);
   }
 }

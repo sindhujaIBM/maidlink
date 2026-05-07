@@ -35,10 +35,6 @@ provider:
       statements:
         - Effect: Allow
           Action:
-            - secretsmanager:GetSecretValue
-          Resource: '*'
-        - Effect: Allow
-          Action:
             - s3:PutObject
             - s3:GetObject
           Resource:
@@ -51,7 +47,7 @@ functions:
       - http:
           path: /bookings
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listBookings:
     handler: src/handlers/booking.listHandler
@@ -59,7 +55,7 @@ functions:
       - http:
           path: /bookings
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getBooking:
     handler: src/handlers/booking.getOneHandler
@@ -67,7 +63,7 @@ functions:
       - http:
           path: /bookings/{id}
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   cancelBooking:
     handler: src/handlers/booking.cancelHandler
@@ -75,7 +71,7 @@ functions:
       - http:
           path: /bookings/{id}
           method: delete
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   completeBooking:
     handler: src/handlers/booking.completeHandler
@@ -83,7 +79,7 @@ functions:
       - http:
           path: /bookings/{id}/complete
           method: patch
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getEarnings:
     handler: src/handlers/earnings.getEarningsHandler
@@ -91,7 +87,7 @@ functions:
       - http:
           path: /bookings/earnings
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   createReview:
     handler: src/handlers/review.createHandler
@@ -99,7 +95,7 @@ functions:
       - http:
           path: /bookings/{id}/review
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listMaidReviews:
     handler: src/handlers/review.listByMaidHandler
@@ -107,7 +103,7 @@ functions:
       - http:
           path: /reviews/maids/{maidId}
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getMaidSlots:
     handler: src/handlers/availability.getSlotsHandler
@@ -115,7 +111,7 @@ functions:
       - http:
           path: /bookings/maids/{maidId}/slots
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   listAvailability:
     handler: src/handlers/availability.listHandler
@@ -123,7 +119,7 @@ functions:
       - http:
           path: /availabilities
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   createRecurring:
     handler: src/handlers/availability.createRecurringHandler
@@ -131,7 +127,7 @@ functions:
       - http:
           path: /availabilities/recurring
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   deleteRecurring:
     handler: src/handlers/availability.deleteRecurringHandler
@@ -139,7 +135,7 @@ functions:
       - http:
           path: /availabilities/recurring/{id}
           method: delete
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   createOverride:
     handler: src/handlers/availability.createOverrideHandler
@@ -147,7 +143,7 @@ functions:
       - http:
           path: /availabilities/overrides
           method: post
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   deleteOverride:
     handler: src/handlers/availability.deleteOverrideHandler
@@ -155,7 +151,7 @@ functions:
       - http:
           path: /availabilities/overrides/{id}
           method: delete
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   getAfterPhotoUploadUrl:
     handler: src/handlers/bookingPhotos.getUploadUrlHandler
@@ -163,7 +159,7 @@ functions:
       - http:
           path: /bookings/{id}/after-photos/upload-url
           method: get
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
   submitAfterPhotos:
     handler: src/handlers/bookingPhotos.submitHandler
@@ -171,7 +167,7 @@ functions:
       - http:
           path: /bookings/{id}/after-photos
           method: patch
-          cors: { origin: '*', headers: [Content-Type, Authorization], allowCredentials: true }
+          cors: { origin: "${env:CORS_ORIGIN, 'http://localhost:5173'}", headers: [Content-Type, Authorization], allowCredentials: true }
 
 custom:
   esbuild:

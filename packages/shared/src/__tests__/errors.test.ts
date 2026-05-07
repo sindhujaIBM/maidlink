@@ -60,7 +60,7 @@ describe('toErrorResponse', () => {
 
   it('includes CORS headers', () => {
     const res = toErrorResponse(new ValidationError('bad input'));
-    expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
+    expect(res.headers['Access-Control-Allow-Origin']).toBe('https://maidlink.ca');
     expect(res.headers['Content-Type']).toBe('application/json');
   });
 
