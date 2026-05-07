@@ -76,6 +76,20 @@ const ROOM_SHOTS: Record<string, ShotItem[]> = {
   ],
 };
 
+const ROOM_MIN_HINTS: Record<string, string> = {
+  Kitchen:      'stovetop & counters',
+  Bathroom:     'toilet & shower/tub',
+  Bedroom:      'full room view & floor',
+  'Living Room':'full room & seating area',
+  Basement:     'full space & floor condition',
+  Garage:       'full garage & floor',
+};
+
+function getRoomMinHint(roomName: string): string {
+  const key = Object.keys(ROOM_MIN_HINTS).find(k => roomName.startsWith(k));
+  return key ? ROOM_MIN_HINTS[key] : 'an overview and at least one detail shot';
+}
+
 function getShotGuide(roomName: string, cleaningType: string): ShotItem[] {
   const tier = cleaningType.includes('Move') || cleaningType.includes('Deep') ? 'deep' : 'standard';
   const tieredKey = `${roomName}:${tier}`;
@@ -147,6 +161,14 @@ export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom,
   const [hwZoom,        setHwZoom]        = useState(false);
   const [isDark,        setIsDark]        = useState(false);
   const darkFramesRef = useRef(0);
+
+  // ── Escape key to close ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
 
   // ── Request camera ────────────────────────────────────────────────────────
 
@@ -432,7 +454,8 @@ export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom,
           type="button"
           onClick={onClose}
           aria-label="Close camera"
-          className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+          className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/40 transition-colors text-base font-semibold"
+          title="Close (Esc)"
         >
           ✕
         </button>
@@ -539,6 +562,17 @@ export function CameraCapture({ roomName, cleaningType, maxCaptures, isLastRoom,
                   <p className="text-white font-bold text-2xl mb-2">{currentShot.label}</p>
                   <p className="text-gray-300 text-sm leading-relaxed max-w-xs">{currentShot.hint}</p>
                 </div>
+
+                {/* Minimum capture nudge — shown only on the first shot */}
+                {angleIdx === 0 && (
+                  <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 max-w-xs text-center">
+                    <p className="text-amber-300 text-xs leading-relaxed">
+                      <span className="font-semibold">Heads up:</span> for this room, at minimum we need{' '}
+                      <span className="text-white font-medium">{getRoomMinHint(roomName)}</span>.
+                      {' '}Everything else is a bonus for the AI.
+                    </p>
+                  </div>
+                )}
 
                 {/* Privacy notice */}
                 <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 max-w-xs text-center">

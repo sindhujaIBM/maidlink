@@ -56,3 +56,5 @@ secrets/
 
 # Test artifacts
 *.snap
+test-results/
+playwright-report/

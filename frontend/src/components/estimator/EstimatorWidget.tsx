@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AlphaFeedbackForm } from './AlphaFeedbackForm';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Spinner } from '../ui/Spinner';
-import { Stepper, ChipGroup, SQFT_PRESETS, snapSqft } from '../ui/FormControls';
+import { snapSqft } from '../ui/FormControls';
 import { useAuth } from '../../contexts/AuthContext';
 import { buildGoogleAuthUrl } from '../../api/auth';
 import {
@@ -21,7 +21,7 @@ const QRCodeSVG = lazy(() =>
 // ── Types & constants ─────────────────────────────────────────────────────────
 
 import {
-  calcHours, buildRoomList, getRate, GST, FREQ_MULTIPLIER, roundHours, NEWBIE_MULTIPLIER,
+  calcHours, buildRoomList, getRate, FREQ_MULTIPLIER, roundHours, NEWBIE_MULTIPLIER,
   type CleaningType, type HouseCondition, type CookingFreq, type CookingStyle, type CleanFrequency,
 } from '../../lib/estimatorCalc';
 
@@ -33,38 +33,21 @@ const CLEANING_TYPES: CleaningType[] = [
 ];
 
 const CLEAN_FREQUENCIES: CleanFrequency[] = ['One-time', 'Monthly', 'Biweekly', 'Weekly'];
-
-const FREQ_DESCRIPTIONS: Record<CleanFrequency, string> = {
-  'One-time':  '',
-  'Monthly':   '$35/hr · home visited ~4×/yr',
-  'Biweekly':  '$33/hr · home visited ~26×/yr',
-  'Weekly':    '$30/hr · home stays very clean',
-};
-const HOUSE_CONDITIONS: HouseCondition[]= ['Pristine', 'Lightly Used', 'Normal', 'Moderately Dirty', 'Heavily Soiled'];
-
-const CONDITION_DESCRIPTIONS: Record<HouseCondition, string> = {
-  'Pristine':         'Cleaned recently, minimal dust',
-  'Lightly Used':     'Light mess, small touch-ups needed',
-  'Normal':           'Regular everyday household mess',
-  'Moderately Dirty': 'Last cleaned 1–2 months ago',
-  'Heavily Soiled':   'Visible buildup, grease or neglect',
-};
+const HOUSE_CONDITIONS: HouseCondition[] = ['Pristine', 'Lightly Used', 'Normal', 'Moderately Dirty', 'Heavily Soiled'];
 
 
 const EXTRAS = [
-  { id: 'oven',         label: 'Inside Oven',      hours: 1    },
-  { id: 'refrigerator', label: 'Inside Fridge',    hours: 0.5  },
-  { id: 'windows',      label: 'Windows',          hours: 1    },
-  { id: 'basement',     label: 'Basement',         hours: 1    },
-  { id: 'laundry',      label: 'Laundry (1 load)', hours: 0.5  },
-  { id: 'garage',       label: 'Garage',           hours: 0.75 },
+  { id: 'oven',         label: 'Inside Oven',   hours: 1    },
+  { id: 'refrigerator', label: 'Inside Fridge', hours: 0.5  },
+  { id: 'windows',      label: 'Windows',       hours: 1    },
+  { id: 'basement',     label: 'Basement',      hours: 1    },
+  { id: 'garage',       label: 'Garage',        hours: 0.75 },
 ];
+// These are always included in Move-Out; basement/garage remain user-controlled
+const MOVEOUT_LOCKED_EXTRAS = ['oven', 'refrigerator', 'windows'];
 const EXTRA_MINS: Record<number, string> = { 1: '60', 0.5: '30', 0.75: '45' };
 
 const MAX_PER_ROOM  = 5;
-const MIN_TOTAL     = 5;
-const MAX_BEDROOMS  = 8;
-const MAX_BATHROOMS = 6;
 
 // ── Room list derived from form state — see frontend/src/lib/estimatorCalc.ts ──
 
@@ -262,6 +245,105 @@ async function downloadChecklist(
   doc.save(`maidlink-checklist-${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
+// ── Step 0 sub-components ─────────────────────────────────────────────────────
+
+function S0Card({ num, title, sub, children }: { num: string; title: string; sub: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl border border-stone-200 p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-7 h-7 rounded-lg bg-amber-50 text-brand-700 flex items-center justify-center font-bold text-sm flex-shrink-0"
+          style={{ fontFamily: 'Fraunces, Georgia, serif' }}>{num}</div>
+        <div>
+          <div className="font-semibold text-gray-900 leading-snug" style={{ fontFamily: 'Fraunces, Georgia, serif', fontSize: '1.05rem' }}>{title}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{sub}</div>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function S0Stepper({ label, value, onDec, onInc, suffix }: { label: string; value: number; onDec: () => void; onInc: () => void; suffix?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">{label}</div>
+      <div className="flex items-center justify-between p-1.5 border border-stone-200 rounded-xl bg-white">
+        <button type="button" onClick={onDec} data-testid={`stepper-${label.toLowerCase()}-dec`} className="w-8 h-8 rounded-lg bg-amber-50 text-gray-700 flex items-center justify-center text-base hover:bg-stone-100 transition-colors">−</button>
+        <span style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-xl font-semibold text-gray-900">
+          {value}{suffix && <span className="text-[11px] text-gray-400 ml-0.5 font-normal" style={{ fontFamily: 'Inter, sans-serif' }}>{suffix}</span>}
+        </span>
+        <button type="button" onClick={onInc} data-testid={`stepper-${label.toLowerCase()}-inc`} className="w-8 h-8 rounded-lg bg-brand-700 text-white flex items-center justify-center text-base hover:bg-brand-800 transition-colors">+</button>
+      </div>
+    </div>
+  );
+}
+
+function S0Pill({ active, onClick, children, sub }: { active: boolean; onClick: () => void; children: React.ReactNode; sub?: string }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`px-3 py-2 rounded-xl font-semibold text-sm transition-colors inline-flex items-baseline gap-1.5 flex-shrink-0
+        ${active ? 'border-brand-600 bg-brand-50 text-brand-800 border' : 'border border-stone-200 bg-white text-gray-700 hover:border-brand-300'}`}>
+      {children}
+      {sub && <span className="text-[10px] font-medium opacity-70">{sub}</span>}
+    </button>
+  );
+}
+
+function S0BigOption({ active, onClick, title, sub, badge }: { active: boolean; onClick: () => void; title: string; sub: string; badge: string }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`p-4 text-left relative rounded-xl transition-colors w-full
+        ${active ? 'border-brand-600 bg-brand-50' : 'border-stone-200 bg-white hover:border-brand-300'}`}
+      style={{ border: `1.5px solid ${active ? '#1F6E64' : '#E6E1D3'}` }}>
+      <div className={`absolute top-3 right-3 text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wide
+        ${active ? 'bg-brand-600 text-white' : 'bg-amber-50 text-gray-400'}`}>{badge}</div>
+      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mb-3 transition-colors
+        ${active ? 'border-brand-600 bg-brand-600' : 'border-gray-300 bg-white'}`}>
+        {active && <div className="w-2 h-2 rounded-full bg-white"/>}
+      </div>
+      <div className="font-semibold text-sm leading-tight" style={{ fontFamily: 'Fraunces, Georgia, serif', color: active ? '#1F6E64' : '#1A1F1E' }}>{title}</div>
+      <div className="text-xs text-gray-400 mt-1">{sub}</div>
+    </button>
+  );
+}
+
+function S0ConditionTile({ active, onClick, label, sub, level }: { active: boolean; onClick: () => void; label: string; sub: string; level: number }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`p-3 text-center flex flex-col items-center gap-2 rounded-xl transition-colors w-full
+        ${active ? 'bg-brand-50' : 'bg-white hover:border-brand-300'}`}
+      style={{ border: `1.5px solid ${active ? '#1F6E64' : '#E6E1D3'}` }}>
+      <div className="flex gap-1">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="w-5 h-1 rounded-full transition-colors"
+            style={{ background: i <= level ? (active ? '#1F6E64' : '#D4A93A') : '#E6E1D3' }}/>
+        ))}
+      </div>
+      <div className="text-sm font-semibold" style={{ color: active ? '#1F6E64' : '#1A1F1E' }}>{label}</div>
+      <div className="text-[10px] text-gray-400">{sub}</div>
+    </button>
+  );
+}
+
+function S0ExtraTile({ active, onClick, label, time, locked }: { active: boolean; onClick: () => void; label: string; time: string; locked?: boolean }) {
+  return (
+    <button type="button" onClick={locked ? undefined : onClick}
+      className={`p-3 text-left flex items-center justify-between gap-2 rounded-xl transition-colors
+        ${active ? 'bg-brand-50' : 'bg-white'}
+        ${locked ? 'cursor-default opacity-60' : 'cursor-pointer hover:border-brand-400'}`}
+      style={{ border: `1.5px solid ${active ? '#1F6E64' : '#E6E1D3'}` }}>
+      <div>
+        <div className="text-sm font-semibold" style={{ color: active ? '#1F6E64' : '#1A1F1E' }}>{label}</div>
+        <div className="text-[11px] text-gray-400 mt-0.5">{time}</div>
+      </div>
+      <div className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center transition-colors"
+        style={{ border: `1.5px solid ${active ? '#1F6E64' : '#E6E1D3'}`, background: active ? '#1F6E64' : 'white' }}>
+        {active && <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M4 12.5L10 18L20 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      </div>
+    </button>
+  );
+}
+
 // ── Shared UI components ──────────────────────────────────────────────────────
 
 function StepIndicator({ step, maxStep, hasResults, onStepClick }: {
@@ -370,11 +452,19 @@ export function EstimatorWidget() {
   const [includeKitchen,   setIncludeKitchen]  = useState(true);
   const [includeLivingRoom, setIncludeLivingRoom] = useState(true);
 
+  // Step 0 display-level state — derived → existing calc state via useEffect
+  type PetLevel     = 'none' | 'one' | 'multi';
+  type CookingLevel = 'rare' | 'weekly' | 'daily';
+  const [petLevel,     setPetLevel]     = useState<PetLevel>('none');
+  const [cookingLevel, setCookingLevel] = useState<CookingLevel>('weekly');
+  const [livingSpaces, setLivingSpaces] = useState(1);
+
   // Step 1 — per-room photos
-  type PhotoEntry = { file: File; preview: string; s3Key: string | null };
+  type PhotoEntry = { file: File; preview: string; s3Key: string | null; failed?: boolean };
   const [rooms,        setRooms]       = useState<string[]>([]);
   const [roomPhotos,   setRoomPhotos]  = useState<Record<string, PhotoEntry[]>>({});
-  const [uploading,    setUploading]   = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const uploading = uploadingCount > 0;
   const [uploadError,  setUploadError] = useState<string | null>(null);
   const [activeRoom,   setActiveRoom]  = useState<string | null>(null);
   const fileInputRef  = useRef<HTMLInputElement>(null);
@@ -386,7 +476,11 @@ export function EstimatorWidget() {
 
   // Desktop → mobile nudge
   const isTouchDevice  = navigator.maxTouchPoints > 0 || /Android|iPhone|iPad/i.test(navigator.userAgent);
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(true);
+
+  // Step 1 UI state — refine chip bar + tips drawer
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [tipsOpen,   setTipsOpen]   = useState(false);
 
   // Step 1 — coverage review
   const [showReview,   setShowReview]  = useState(false);
@@ -417,6 +511,11 @@ export function EstimatorWidget() {
       if (s.extras        !== undefined) setExtras(s.extras);
       if (s.includeKitchen    !== undefined) setIncludeKitchen(s.includeKitchen);
       if (s.includeLivingRoom !== undefined) setIncludeLivingRoom(s.includeLivingRoom);
+      // New display-level state (with backwards-compat fallback from old boolean pets)
+      if (s.petLevel      !== undefined) setPetLevel(s.petLevel);
+      else if (s.pets !== undefined)     setPetLevel(s.pets ? 'one' : 'none');
+      if (s.cookingLevel  !== undefined) setCookingLevel(s.cookingLevel);
+      if (s.livingSpaces  !== undefined) setLivingSpaces(s.livingSpaces);
     } catch { /* ignore corrupt storage */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -424,10 +523,23 @@ export function EstimatorWidget() {
     sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
       step, fromLandingPage,
       bedrooms, bathrooms, sqft, cleaningType, houseCondition,
-      pets, cookingFreq, cookingStyle, frequency, extras,
-      includeKitchen, includeLivingRoom,
+      frequency, extras, includeKitchen, includeLivingRoom,
+      petLevel, cookingLevel, livingSpaces,
     }));
   }
+
+  // Sync petLevel → pets (boolean for calc engine + API)
+  useEffect(() => { setPets(petLevel !== 'none'); }, [petLevel]);
+
+  // Sync cookingLevel → cookingFreq + cookingStyle (for calc engine + API)
+  useEffect(() => {
+    if (cookingLevel === 'rare')   { setCookingFreq('Rarely');      setCookingStyle('Light');    }
+    if (cookingLevel === 'weekly') { setCookingFreq('Occasionally'); setCookingStyle('Moderate'); }
+    if (cookingLevel === 'daily')  { setCookingFreq('Frequently');   setCookingStyle('Heavy');    }
+  }, [cookingLevel]);
+
+  // Sync livingSpaces → includeLivingRoom
+  useEffect(() => { setIncludeLivingRoom(livingSpaces > 0); }, [livingSpaces]);
 
   // Reset frequency for types that don't support recurring (Move-Out and STR are always one-time)
   useEffect(() => {
@@ -436,10 +548,10 @@ export function EstimatorWidget() {
     }
   }, [cleaningType]);
 
-  // Auto-select extras for move-out
+  // Auto-select locked extras for move-out (oven, fridge, windows); leave basement/garage as-is
   useEffect(() => {
     if (cleaningType === 'Move-Out/Move-In Cleaning') {
-      setExtras(EXTRAS.map(e => e.id));
+      setExtras(prev => [...new Set([...prev, ...MOVEOUT_LOCKED_EXTRAS])]);
     } else {
       setExtras([]);
     }
@@ -471,26 +583,17 @@ export function EstimatorWidget() {
 
   // Derived values
   const { one, two, oneMax, twoMax } = calcHours(bedrooms, bathrooms, sqft, cleaningType, houseCondition, pets, cookingFreq, cookingStyle, extras, frequency);
-  const isMoveOut        = cleaningType === 'Move-Out/Move-In Cleaning';
-  const showRefineStrip  = fromLandingPage && (cleaningType === 'Standard Cleaning' || cleaningType === 'Deep Cleaning');
-  const REFINE_EXTRAS    = showRefineStrip
-    ? EXTRAS.filter(e => cleaningType === 'Deep Cleaning'
-        ? !['oven', 'refrigerator', 'windows'].includes(e.id)
-        : true)
-    : [];
+  const isMoveOut = cleaningType === 'Move-Out/Move-In Cleaning';
 
-  const maxTotal = useMemo(() => {
-    const safeRooms = buildRoomList(
-      Math.min(bedrooms, MAX_BEDROOMS),
-      Math.min(bathrooms, MAX_BATHROOMS),
-      extras, includeKitchen, includeLivingRoom,
-    );
-    return safeRooms.length * MAX_PER_ROOM;
-  }, [bedrooms, bathrooms, extras, includeKitchen, includeLivingRoom]);
 
+  const MIN_PHOTOS_PER_ROOM = 2;
   const allPhotos     = Object.values(roomPhotos).flat();
   const totalReady    = allPhotos.filter(p => p.s3Key !== null).length;
-  const canAnalyze    = totalReady >= MIN_TOTAL && !uploading;
+  const roomsReady    = rooms.filter(r =>
+    (roomPhotos[r] ?? []).filter(p => p.s3Key !== null && !p.failed).length >= MIN_PHOTOS_PER_ROOM
+  ).length;
+  // Single-room bookings only need 2 uploaded photos to enable analysis.
+  const canAnalyze = rooms.length > 0 && roomsReady === rooms.length && !uploading;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -533,46 +636,50 @@ export function EstimatorWidget() {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const roomCount   = roomPhotos[activeRoom]?.length ?? 0;
-    const canAdd      = MAX_PER_ROOM - roomCount;
-    const validFiles  = files.filter(f => f.type.startsWith('image/')).slice(0, canAdd);
+    const roomCount  = roomPhotos[activeRoom]?.length ?? 0;
+    const canAdd     = MAX_PER_ROOM - roomCount;
+    const validFiles = files.filter(f => f.type.startsWith('image/')).slice(0, canAdd);
     if (!validFiles.length) return;
 
     const oversized = validFiles.find(f => f.size > 10 * 1024 * 1024);
     if (oversized) { setUploadError('Each photo must be under 10 MB'); return; }
 
     setUploadError(null);
-    setUploading(true);
+    setUploadingCount(c => c + validFiles.length);
 
-    const newEntries: PhotoEntry[] = validFiles.map(file => ({
-      file, preview: URL.createObjectURL(file), s3Key: null,
-    }));
-    const startIdx = roomCount;
     const room = activeRoom;
-
+    const newEntries: PhotoEntry[] = validFiles.map(file => ({
+      file, preview: URL.createObjectURL(file), s3Key: null, failed: false,
+    }));
     setRoomPhotos(prev => ({ ...prev, [room]: [...(prev[room] ?? []), ...newEntries] }));
 
-    const results = await Promise.allSettled(
-      newEntries.map(async (entry, i) => {
-        const { uploadUrl, s3Key } = await getEstimatorPhotoUploadUrl();
-        await uploadEstimatorPhotoToS3(uploadUrl, entry.file);
-        return { i, s3Key };
-      })
-    );
-
-    setRoomPhotos(prev => {
-      const updated = [...(prev[room] ?? [])];
-      results.forEach(res => {
-        if (res.status === 'fulfilled') {
-          updated[startIdx + res.value.i] = { ...updated[startIdx + res.value.i], s3Key: res.value.s3Key };
+    // Upload sequentially with one retry each so a single network blip doesn't lose multiple photos.
+    let failures = 0;
+    for (const entry of newEntries) {
+      let uploaded = false;
+      for (let attempt = 0; attempt < 2 && !uploaded; attempt++) {
+        try {
+          const { uploadUrl, s3Key } = await getEstimatorPhotoUploadUrl();
+          await uploadEstimatorPhotoToS3(uploadUrl, entry.file);
+          setRoomPhotos(prev => ({
+            ...prev,
+            [room]: (prev[room] ?? []).map(p => p.file === entry.file ? { ...p, s3Key, failed: false } : p),
+          }));
+          uploaded = true;
+        } catch {
+          if (attempt === 1) {
+            setRoomPhotos(prev => ({
+              ...prev,
+              [room]: (prev[room] ?? []).map(p => p.file === entry.file ? { ...p, failed: true } : p),
+            }));
+            failures++;
+          }
         }
-      });
-      return { ...prev, [room]: updated };
-    });
+      }
+      setUploadingCount(c => Math.max(0, c - 1));
+    }
 
-    const failures = results.filter(r => r.status === 'rejected').length;
-    if (failures > 0) setUploadError(`${failures} photo(s) failed to upload.`);
-    setUploading(false);
+    if (failures > 0) setUploadError('Some photos failed — tap the red photos to retry.');
   }
 
   function removePhoto(roomName: string, index: number) {
@@ -589,29 +696,73 @@ export function EstimatorWidget() {
   }
 
   async function handleCameraCapture(roomName: string, file: File) {
-    const roomCount = roomPhotos[roomName]?.length ?? 0;
-    if (roomCount >= MAX_PER_ROOM) return;
+    // Check capacity using functional update so concurrent captures see each other's additions.
+    let atCapacity = false;
+    setRoomPhotos(prev => {
+      const existing = prev[roomName] ?? [];
+      if (existing.length >= MAX_PER_ROOM) { atCapacity = true; return prev; }
+      return { ...prev, [roomName]: [...existing, { file, preview: URL.createObjectURL(file), s3Key: null, failed: false }] };
+    });
+    if (atCapacity) return;
 
     setUploadError(null);
-    setUploading(true);
+    setUploadingCount(c => c + 1);
 
-    const startIdx = roomCount;
-    const entry: PhotoEntry = { file, preview: URL.createObjectURL(file), s3Key: null };
-    setRoomPhotos(prev => ({ ...prev, [roomName]: [...(prev[roomName] ?? []), entry] }));
-
-    try {
-      const { uploadUrl, s3Key } = await getEstimatorPhotoUploadUrl();
-      await uploadEstimatorPhotoToS3(uploadUrl, file);
-      setRoomPhotos(prev => {
-        const updated = [...(prev[roomName] ?? [])];
-        updated[startIdx] = { ...updated[startIdx], s3Key };
-        return { ...prev, [roomName]: updated };
-      });
-    } catch {
-      setUploadError('Failed to upload captured photo. Please try again.');
-    } finally {
-      setUploading(false);
+    let uploaded = false;
+    for (let attempt = 0; attempt < 2 && !uploaded; attempt++) {
+      try {
+        const { uploadUrl, s3Key } = await getEstimatorPhotoUploadUrl();
+        await uploadEstimatorPhotoToS3(uploadUrl, file);
+        setRoomPhotos(prev => ({
+          ...prev,
+          [roomName]: (prev[roomName] ?? []).map(p => p.file === file ? { ...p, s3Key, failed: false } : p),
+        }));
+        uploaded = true;
+      } catch {
+        if (attempt === 1) {
+          setRoomPhotos(prev => ({
+            ...prev,
+            [roomName]: (prev[roomName] ?? []).map(p => p.file === file ? { ...p, failed: true } : p),
+          }));
+          setUploadError('Photo failed to upload — tap it to retry.');
+        }
+      }
     }
+    setUploadingCount(c => Math.max(0, c - 1));
+  }
+
+  async function retryPhoto(roomName: string, idx: number) {
+    const entry = (roomPhotos[roomName] ?? [])[idx];
+    if (!entry?.failed) return;
+
+    setRoomPhotos(prev => ({
+      ...prev,
+      [roomName]: (prev[roomName] ?? []).map(p => p.file === entry.file ? { ...p, failed: false, s3Key: null } : p),
+    }));
+    setUploadError(null);
+    setUploadingCount(c => c + 1);
+
+    let uploaded = false;
+    for (let attempt = 0; attempt < 2 && !uploaded; attempt++) {
+      try {
+        const { uploadUrl, s3Key } = await getEstimatorPhotoUploadUrl();
+        await uploadEstimatorPhotoToS3(uploadUrl, entry.file);
+        setRoomPhotos(prev => ({
+          ...prev,
+          [roomName]: (prev[roomName] ?? []).map(p => p.file === entry.file ? { ...p, s3Key, failed: false } : p),
+        }));
+        uploaded = true;
+      } catch {
+        if (attempt === 1) {
+          setRoomPhotos(prev => ({
+            ...prev,
+            [roomName]: (prev[roomName] ?? []).map(p => p.file === entry.file ? { ...p, failed: true } : p),
+          }));
+          setUploadError('Retry failed — please check your connection.');
+        }
+      }
+    }
+    setUploadingCount(c => Math.max(0, c - 1));
   }
 
   async function handleAnalyze() {
@@ -674,316 +825,487 @@ export function EstimatorWidget() {
 
   return (
     <div className="space-y-5">
-      <StepIndicator step={step} maxStep={maxStep} hasResults={!!aiResult} onStepClick={handleStepClick} />
+      {/* Step indicator — only for step 2; steps 0 and 1 have their own inline indicators */}
+      {step === 2 && <StepIndicator step={step} maxStep={maxStep} hasResults={!!aiResult} onStepClick={handleStepClick} />}
 
       {/* ═══════════════════════════════════ STEP 0: Home Details ══════════════ */}
-      {step === 0 && (
-        <>
-          {/* ── Card 1: Your Home ─────────────────────────────────────────────── */}
-          <div className="card space-y-5">
-            <div className="grid grid-cols-2 gap-6">
-              <Stepper label="Bedrooms"  value={bedrooms}  min={0} max={8} onChange={setBedrooms} />
-              <Stepper label="Bathrooms" value={bathrooms} min={0} max={6} step={0.5} onChange={setBathrooms} />
-            </div>
-
-            <div className="border-t border-gray-100 pt-4">
-              <label className="label mb-2">Home Size</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {SQFT_PRESETS.map(p => (
-                  <button key={p.value} type="button" onClick={() => setSqft(p.value)}
-                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      sqft === p.value
-                        ? 'bg-brand-600 text-white border-brand-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                    }`}>
-                    {p.label}
-                    <span className={`block text-xs mt-0.5 ${sqft === p.value ? 'text-brand-100' : 'text-gray-400'}`}>sq ft</span>
-                  </button>
-                ))}
+      {step === 0 && (() => {
+        const rate    = getRate(cleaningType, frequency);
+        const priceMin = Math.round(one * rate);
+        const priceMax = Math.round(oneMax * rate);
+        const cleaners = one > 5 ? 2 : 1;
+        const onSite   = cleaners === 2 ? one / 2 : one;
+        const condLabel: Record<string, string> = {
+          Pristine: 'Pristine', 'Lightly Used': 'Normal', Normal: 'Normal',
+          'Moderately Dirty': 'Dirty', 'Heavily Soiled': 'Heavy',
+        };
+        return (
+          <div className="space-y-6">
+            {/* ── Header ────────────────────────────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold tracking-widest text-brand-600 uppercase mb-1">
+                  Free Calgary Estimate · Step 1 of 3
+                </div>
+                <h1 style={{ fontFamily: 'Fraunces, Georgia, serif' }}
+                  className="text-3xl sm:text-4xl font-medium text-gray-900 tracking-tight leading-tight m-0">
+                  Tell us about your home
+                </h1>
+                <p className="text-sm sm:text-base text-gray-400 mt-2 max-w-xl">
+                  Five quick groups. Your estimate updates live — no commitment, no card.
+                </p>
               </div>
-              <p className="text-xs text-gray-400 mt-2">Not sure? Check your MLS listing or property tax notice.</p>
-            </div>
-          </div>
-
-          {/* ── Card 2: Cleaning Preferences ──────────────────────────────────── */}
-          <div className="card space-y-5">
-            <ChipGroup label="Cleaning Type" options={CLEANING_TYPES} value={cleaningType} onChange={setCleaningType} />
-
-            {/* Frequency — only for Standard Cleaning */}
-            {cleaningType === 'Standard Cleaning' && (
-              <div className="border-t border-gray-100 pt-4">
-                <label className="label mb-2">Frequency</label>
-                <div className="space-y-2">
-                  {CLEAN_FREQUENCIES.map(freq => (
-                    <button key={freq} type="button" onClick={() => setFrequency(freq)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                        frequency === freq
-                          ? 'bg-brand-50 border-brand-400 text-brand-800'
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'
-                      }`}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{freq}</span>
-                        {freq !== 'One-time' && (
-                          <span className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
-                            {Math.round((1 - FREQ_MULTIPLIER[freq]) * 100)}% less time
-                          </span>
-                        )}
-                      </div>
-                      {FREQ_DESCRIPTIONS[freq] && (
-                        <span className={`text-xs ${frequency === freq ? 'text-brand-600' : 'text-gray-400'}`}>
-                          {FREQ_DESCRIPTIONS[freq]}
+              <div className="hidden sm:flex items-center flex-shrink-0 mb-1">
+                {[
+                  { n: 1, l: 'Home', active: true },
+                  { n: 2, l: 'Photos', active: false },
+                  { n: 3, l: 'Results', active: false },
+                ].map((s, i, arr) => {
+                  const reachable = i > 0 && i <= maxStep && (i !== 2 || !!aiResult);
+                  return (
+                    <div key={s.n} className="flex items-center">
+                      <div className="flex flex-col items-center">
+                        <button type="button"
+                          onClick={() => reachable ? handleStepClick(i) : undefined}
+                          className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
+                            ${s.active ? 'bg-brand-700 text-white ring-4 ring-brand-200' : reachable ? 'bg-brand-500 text-white cursor-pointer hover:bg-brand-600' : 'bg-gray-200 text-gray-500 cursor-default'}`}>
+                          {s.n}
+                        </button>
+                        <span className={`text-[10px] mt-1 font-medium whitespace-nowrap ${s.active ? 'text-brand-700' : reachable ? 'text-brand-500' : 'text-gray-400'}`}>
+                          {s.l}
                         </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                      </div>
+                      {i < arr.length - 1 && <div className={`h-0.5 w-8 mx-1 mb-4 ${i < 1 ? 'bg-gray-200' : 'bg-gray-200'}`}/>}
+                    </div>
+                  );
+                })}
               </div>
-            )}
-
-            {/* STR notice */}
-            {cleaningType === 'Short-Term Rental Turnover' && (
-              <div className="border-t border-gray-100 pt-4">
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  Includes linen & towel turnover (+30 min). Condition adjustments not applied — trashed properties require a separate quote.
-                </p>
-              </div>
-            )}
-
-            {/* Condition + pets hidden for STR — not relevant to turnover model */}
-            {cleaningType !== 'Short-Term Rental Turnover' && (<>
-              <div className="border-t border-gray-100 pt-4">
-                <label className="label mb-2">Home Condition</label>
-                <div className="space-y-2">
-                  {HOUSE_CONDITIONS.map(cond => (
-                    <button key={cond} type="button" onClick={() => setHouseCondition(cond)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                        houseCondition === cond
-                          ? 'bg-brand-50 border-brand-400 text-brand-800'
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'
-                      }`}>
-                      <span className="font-medium">{cond}</span>
-                      <span className={`text-xs ${houseCondition === cond ? 'text-brand-600' : 'text-gray-400'}`}>
-                        {CONDITION_DESCRIPTIONS[cond]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
-                <div>
-                  <p className="label">Pets</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Adds 45 min for pet hair</p>
-                </div>
-                <button type="button" onClick={() => setPets(p => !p)}
-                  className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                    pets ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                  }`}>
-                  {pets ? 'Yes' : 'No'}
-                </button>
-              </div>
-            </>)}
-          </div>
-
-          {/* ── Card 3: Add-ons — hidden for STR ─────────────────────────────── */}
-          {cleaningType !== 'Short-Term Rental Turnover' && <div className="card">
-            <div className="flex items-center justify-between mb-3">
-              <label className="label">Additional Tasks</label>
-              {isMoveOut && (
-                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-                  All included in Move-Out
-                </span>
-              )}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {EXTRAS.map(e => {
-                const active = extras.includes(e.id);
-                return (
-                  <button key={e.id} type="button"
-                    onClick={() => !isMoveOut && toggleExtra(e.id)}
-                    disabled={isMoveOut}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      active
-                        ? 'bg-brand-600 text-white border-brand-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                    } disabled:cursor-default`}>
-                    {e.label}
-                    <span className={`block text-xs mt-0.5 ${active ? 'text-brand-100' : 'text-gray-400'}`}>
-                      +{EXTRA_MINS[e.hours]} min
-                    </span>
+
+            {/* ── Mobile live estimate strip ─────────────────────────────────────── */}
+            <div className="lg:hidden rounded-2xl p-3 flex items-center justify-between text-white"
+              style={{ background: 'linear-gradient(135deg, #1F6E64, #17524B)' }}>
+              <div>
+                <div className="text-[9px] font-bold tracking-widest opacity-80 uppercase">Live Estimate</div>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-xl font-semibold">
+                    {onSite.toFixed(1)}h
+                  </span>
+                  <span className="text-xs opacity-75">· {cleaners} cleaner{cleaners > 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[9px] font-bold tracking-widest opacity-80 uppercase">Price</div>
+                <div style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-base font-semibold text-amber-300">
+                  ${priceMin}–${priceMax}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Two-column grid ────────────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start">
+
+              {/* LEFT: 5 numbered cards */}
+              <div className="flex flex-col gap-5">
+
+                {/* Card 1: Your home */}
+                <S0Card num="1" title="Your home" sub="Quick layout — we'll refine with photos next.">
+                  <div className="grid grid-cols-3 gap-3">
+                    <S0Stepper label="Bedrooms" value={bedrooms}
+                      onDec={() => setBedrooms(Math.max(0, bedrooms - 1))} onInc={() => setBedrooms(Math.min(8, bedrooms + 1))}/>
+                    <S0Stepper label="Bathrooms" value={bathrooms}
+                      onDec={() => setBathrooms(Math.max(0, bathrooms - 0.5))} onInc={() => setBathrooms(Math.min(6, bathrooms + 0.5))}/>
+                    <S0Stepper label="Sq ft" value={sqft} suffix=" sf"
+                      onDec={() => setSqft(Math.max(400, sqft - 100))} onInc={() => setSqft(Math.min(6000, sqft + 100))}/>
+                  </div>
+                  <div className="mt-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Living spaces</div>
+                    <div className="flex gap-2 flex-wrap">
+                      {([0,1,2,3] as const).map(n => (
+                        <S0Pill key={n} active={livingSpaces === n} onClick={() => setLivingSpaces(n)}>{n}</S0Pill>
+                      ))}
+                      <S0Pill active={livingSpaces >= 4} onClick={() => setLivingSpaces(4)}>4+</S0Pill>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">Living rooms, dining rooms, family rooms, dens</p>
+                  </div>
+                </S0Card>
+
+                {/* Card 2: Cleaning type */}
+                <S0Card num="2" title="Cleaning type" sub="Standard for upkeep · Deep for a reset · Move-out for empty homes.">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <S0BigOption active={cleaningType === 'Standard Cleaning'} onClick={() => setCleaningType('Standard Cleaning')}
+                      title="Standard" sub="Recurring maintenance" badge="Most popular"/>
+                    <S0BigOption active={cleaningType === 'Deep Cleaning'} onClick={() => setCleaningType('Deep Cleaning')}
+                      title="Deep clean" sub="Top-to-bottom reset" badge="+50% time"/>
+                    <S0BigOption active={cleaningType === 'Move-Out/Move-In Cleaning'} onClick={() => setCleaningType('Move-Out/Move-In Cleaning')}
+                      title="Move-out" sub="Empty home, deposit-grade" badge="+80% time"/>
+                  </div>
+                  {cleaningType === 'Standard Cleaning' && (
+                    <div className="mt-4 pt-4 border-t border-stone-100">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Frequency</div>
+                      <div className="flex flex-wrap gap-2">
+                        {CLEAN_FREQUENCIES.map(f => (
+                          <S0Pill key={f} active={frequency === f} onClick={() => setFrequency(f)}
+                            sub={f !== 'One-time' ? `−${Math.round((1 - FREQ_MULTIPLIER[f]) * 100)}%` : undefined}>
+                            {f}
+                          </S0Pill>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </S0Card>
+
+                {/* Card 3: House condition */}
+                <S0Card num="3" title="House condition" sub="Be honest — it helps us match the right cleaner.">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {([
+                      { v: 'Pristine',         l: 'Pristine', s: 'Looks staged',    level: 1 },
+                      { v: 'Normal',           l: 'Normal',   s: 'Lived-in',        level: 2 },
+                      { v: 'Moderately Dirty', l: 'Dirty',    s: 'Needs attention', level: 3 },
+                      { v: 'Heavily Soiled',   l: 'Heavy',    s: 'Major build-up',  level: 4 },
+                    ] as const).map(({ v, l, s, level }) => (
+                      <S0ConditionTile key={v} active={houseCondition === v} onClick={() => setHouseCondition(v)}
+                        label={l} sub={s} level={level}/>
+                    ))}
+                  </div>
+                </S0Card>
+
+                {/* Card 4: Lifestyle */}
+                <S0Card num="4" title="Lifestyle" sub="A couple quick details that affect the time needed.">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Pets at home</div>
+                      <div className="flex gap-2 flex-wrap">
+                        <S0Pill active={petLevel === 'none'}  onClick={() => setPetLevel('none')}>None</S0Pill>
+                        <S0Pill active={petLevel === 'one'}   onClick={() => setPetLevel('one')}   sub="+20 min">1 pet</S0Pill>
+                        <S0Pill active={petLevel === 'multi'} onClick={() => setPetLevel('multi')} sub="+40 min">2+ pets</S0Pill>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">How often do you cook?</div>
+                      <div className="flex gap-2 flex-wrap">
+                        <S0Pill active={cookingLevel === 'rare'}   onClick={() => setCookingLevel('rare')}>Rarely</S0Pill>
+                        <S0Pill active={cookingLevel === 'weekly'} onClick={() => setCookingLevel('weekly')} sub="+15 min">Weekly</S0Pill>
+                        <S0Pill active={cookingLevel === 'daily'}  onClick={() => setCookingLevel('daily')}  sub="+30 min">Daily</S0Pill>
+                      </div>
+                    </div>
+                  </div>
+                </S0Card>
+
+                {/* Card 5: Add-on tasks */}
+                <S0Card num="5" title="Add-on tasks" sub="Optional — each adds flat time to the estimate.">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {EXTRAS.map(e => {
+                      const locked = isMoveOut && MOVEOUT_LOCKED_EXTRAS.includes(e.id);
+                      return (
+                        <S0ExtraTile key={e.id} active={extras.includes(e.id)} locked={locked}
+                          onClick={() => { if (!locked) toggleExtra(e.id); }}
+                          label={e.label} time={`+${EXTRA_MINS[e.hours]} min`}/>
+                      );
+                    })}
+                  </div>
+                  {isMoveOut && (
+                    <p className="text-xs text-brand-600 mt-3">Oven, fridge &amp; windows included in every Move-Out clean.</p>
+                  )}
+                </S0Card>
+
+                {/* CTA */}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => window.history.back()}
+                    className="px-5 py-3.5 rounded-xl border border-stone-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors flex-shrink-0">
+                    ← Back
                   </button>
-                );
-              })}
-            </div>
-          </div>}
-
-          {/* Quick Estimate */}
-          {(() => {
-            const rate      = getRate(cleaningType, frequency);
-            const base1     = Math.round(one * rate);
-            const total1    = Math.round(base1 * (1 + GST));
-            const base1Max  = Math.round(oneMax * rate);
-            const total1Max = Math.round(base1Max * (1 + GST));
-            const base2     = Math.round(two * rate * 2);
-            const total2    = Math.round(base2 * (1 + GST));
-            const base2Max  = Math.round(twoMax * rate * 2);
-            const total2Max = Math.round(base2Max * (1 + GST));
-            return (
-              <div className="card bg-brand-700 text-white">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-medium text-brand-200">Quick Estimate</h2>
-                  <span className="text-xs text-brand-300">${rate}/hr · +5% GST</span>
+                  <button type="button" onClick={goToStep1}
+                    className="btn-primary flex-1 py-3.5 text-base flex items-center justify-center gap-2">
+                    Continue to room photos <span className="text-lg">→</span>
+                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-brand-600 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold">{one}–{oneMax} hrs</div>
-                    <div className="text-brand-200 text-sm mt-1">1 Cleaner</div>
-                    <div className="text-brand-300 text-xs mt-2">${base1}–${base1Max} + GST</div>
-                    <div className="text-white text-sm font-semibold">${total1}–${total1Max} total</div>
-                  </div>
-                  <div className="bg-brand-600 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold">{two}–{twoMax} hrs</div>
-                    <div className="text-brand-200 text-sm mt-1">2 Cleaners</div>
-                    <div className="text-brand-300 text-xs mt-2">${base2}–${base2Max} + GST</div>
-                    <div className="text-white text-sm font-semibold">${total2}–${total2Max} total</div>
-                  </div>
-                </div>
-                <p className="text-xs text-brand-300 mt-3 text-center">
-                  Upload room photos in the next step for a smarter AI estimate.
-                </p>
+                {!isAuthenticated && (
+                  <p className="text-xs text-center text-gray-400 -mt-2">
+                    Photo analysis requires a free Google sign-in — you'll be prompted in the next step.
+                  </p>
+                )}
               </div>
-            );
-          })()}
 
-          <button type="button" onClick={goToStep1} className="btn-primary w-full text-base py-3">
-            Next: Upload Room Photos →
-          </button>
-          {!isAuthenticated && (
-            <p className="text-xs text-center text-gray-400">
-              Photo analysis requires a free Google sign-in — you'll be prompted in the next step.
-            </p>
-          )}
-        </>
-      )}
+              {/* RIGHT: Sticky sidebar */}
+              <div className="hidden lg:flex flex-col gap-3 sticky top-6">
+                {/* Live estimate card */}
+                <div className="rounded-2xl p-6 text-white"
+                  style={{ background: 'linear-gradient(165deg, #1F6E64 0%, #17524B 100%)', boxShadow: '0 18px 38px rgba(31,110,100,0.25)' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] font-bold tracking-widest opacity-85 uppercase">Live Estimate</div>
+                    <span className="text-[10px] px-2 py-1 rounded-full font-bold"
+                      style={{ background: 'rgba(212,169,58,0.22)', color: '#D4A93A' }}>FORMULA</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 my-1">
+                    <span style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-5xl font-semibold leading-none tracking-tight">
+                      {onSite.toFixed(1)}
+                    </span>
+                    <span className="text-lg opacity-80 font-medium">hrs</span>
+                  </div>
+                  <div className="text-sm opacity-75 mb-4">{cleaners} cleaner{cleaners > 1 ? 's' : ''} on site</div>
+                  <div className="flex items-baseline justify-between pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }}>
+                    <span className="text-xs opacity-70">Price range</span>
+                    <span style={{ fontFamily: 'Fraunces, Georgia, serif', color: '#D4A93A' }} className="text-2xl font-semibold">
+                      ${priceMin}–${priceMax}
+                    </span>
+                  </div>
+                  <div className="text-[11px] opacity-55 mt-2">AI tightens this range after photo review.</div>
+                </div>
+
+                {/* Inputs summary */}
+                <div className="bg-white rounded-2xl p-4 border border-stone-200">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Your inputs</div>
+                  {[
+                    ['Layout', `${bedrooms} bed · ${bathrooms} bath · ${sqft} sq ft · ${livingSpaces} living`],
+                    ['Type', cleaningType.replace(' Cleaning', '').replace('/Move-In', '')],
+                    ['Condition', condLabel[houseCondition] ?? houseCondition],
+                    ['Pets', petLevel === 'none' ? 'None' : petLevel === 'one' ? '1 pet' : '2+ pets'],
+                    ['Cooking', cookingLevel === 'rare' ? 'Rarely' : cookingLevel === 'weekly' ? 'Weekly' : 'Daily'],
+                    ...(extras.length > 0 ? [['Add-ons', `${extras.length} task${extras.length > 1 ? 's' : ''}`] as const] : []),
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex justify-between py-1.5 text-sm border-b border-stone-100 last:border-0">
+                      <span className="text-gray-400">{k}</span>
+                      <span className="font-semibold text-gray-800">{v}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Trust strip */}
+                <div className="bg-white rounded-2xl p-4 border border-stone-200 flex gap-3">
+                  <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
+                    style={{ background: 'rgba(31,110,100,0.1)' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 3L20 6V12C20 17 16 20.5 12 22C8 20.5 4 17 4 12V6Z" stroke="#1F6E64" strokeWidth="1.8" strokeLinejoin="round"/>
+                      <path d="M8.5 12.5L11 15L16 10" stroke="#1F6E64" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-800 mb-0.5">No card, no commitment</div>
+                    <div className="text-[11px] text-gray-400 leading-relaxed">
+                      Free cancellation up to 24 h before your booking. Photos auto-deleted after analysis.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════════════════ STEP 1: Room Photos ═══════════════ */}
       {step === 1 && (
         <>
-          {/* Desktop → mobile nudge */}
-          {!isTouchDevice && !nudgeDismissed && (
-            <div className="flex items-start gap-4 p-4 mb-4 rounded-xl bg-amber-50 border border-amber-200">
-              <Suspense fallback={<div className="w-[72px] h-[72px] bg-gray-100 rounded shrink-0" />}>
-                <QRCodeSVG value={window.location.href} size={72} className="shrink-0 rounded" />
-              </Suspense>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-amber-800 text-sm">Use your phone for best results</p>
-                <p className="text-amber-700 text-xs mt-1 leading-relaxed">
-                  Scan the QR code to open this page on your phone — live camera gives the AI much better detail than uploaded photos.
-                </p>
+          {/* ── Compact header ──────────────────────────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold tracking-widest text-brand-600 uppercase mb-1">
+                Free Calgary Estimate · Step 2 of 3
               </div>
-              <button
-                type="button"
-                onClick={() => setNudgeDismissed(true)}
-                aria-label="Dismiss"
-                className="text-amber-400 hover:text-amber-700 text-xl leading-none shrink-0 transition-colors"
-              >×</button>
+              <h1 style={{ fontFamily: 'Fraunces, Georgia, serif' }}
+                className="text-2xl sm:text-3xl font-medium text-gray-900 tracking-tight leading-tight m-0">
+                Snap a few photos for your AI estimate
+              </h1>
             </div>
-          )}
+            {/* Inline step indicator — desktop only */}
+            <div className="hidden sm:flex items-center gap-0 flex-shrink-0 mt-1">
+              {([
+                { n: 1, l: 'Home', done: true, active: false },
+                { n: 2, l: 'Photos', done: false, active: true },
+                { n: 3, l: 'Results', done: false, active: false },
+              ]).map((s, i, arr) => (
+                <div key={s.n} className="flex items-center">
+                  <div className="flex flex-col items-center">
+                    <button type="button"
+                      onClick={() => handleStepClick(i)}
+                      disabled={i > maxStep || (i === 2 && !aiResult)}
+                      className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
+                        ${s.done ? 'bg-brand-600 text-white' : s.active ? 'bg-brand-700 text-white ring-4 ring-brand-200' : 'bg-gray-200 text-gray-500'}
+                        disabled:cursor-default`}>
+                      {s.done ? '✓' : s.n}
+                    </button>
+                    <span className={`text-[10px] mt-1 font-medium whitespace-nowrap
+                      ${s.active ? 'text-brand-700' : s.done ? 'text-brand-500' : 'text-gray-400'}`}>
+                      {s.l}
+                    </span>
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className={`h-0.5 w-8 mx-1 mb-4 ${i === 0 ? 'bg-brand-600' : 'bg-gray-200'}`} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
 
-          {/* Vacancy reminder for Move-Out/Move-In */}
-          {cleaningType.toLowerCase().includes('move') && (
-            <div className="flex items-start gap-3 p-4 mb-4 rounded-xl bg-blue-50 border border-blue-200">
-              <span className="text-blue-500 text-lg shrink-0 mt-0.5">🏠</span>
-              <div>
-                <p className="font-semibold text-blue-800 text-sm">Rooms should be fully empty</p>
-                <p className="text-blue-700 text-xs mt-0.5 leading-relaxed">
-                  Move-Out/Move-In cleaning is designed for vacant properties. Please photograph rooms after all furniture and belongings have been removed. If rooms are still furnished, the AI will flag this in your estimate.
-                </p>
+          {/* ── Refine chip bar ─────────────────────────────────────────────────── */}
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold tracking-widest text-brand-600 uppercase mr-1">Your Home</span>
+                {[
+                  { label: 'Type', value: cleaningType.replace(' Cleaning', '').replace('/Move-In', '') },
+                  { label: 'Beds', value: String(bedrooms) },
+                  { label: 'Baths', value: String(bathrooms) },
+                  { label: 'Sq ft', value: String(sqft) },
+                  { label: 'Condition', value: houseCondition.split(' ')[0] },
+                  ...(frequency !== 'One-time' ? [{ label: 'Freq', value: frequency }] : []),
+                  ...(pets ? [{ label: 'Pets', value: 'Yes' }] : []),
+                  ...(extras.length > 0 ? [{ label: 'Extras', value: `+${extras.length}` }] : []),
+                ].map(({ label, value }) => (
+                  <div key={label} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-stone-200 rounded-full text-xs">
+                    <span className="text-gray-400 font-medium">{label}</span>
+                    <span className="font-semibold text-gray-800">{value}</span>
+                  </div>
+                ))}
               </div>
+              <button type="button" onClick={() => setRefineOpen(o => !o)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 flex-shrink-0
+                  ${refineOpen
+                    ? 'bg-brand-700 text-white border-brand-700'
+                    : 'text-brand-700 border-brand-700 hover:bg-brand-50'}`}>
+                {refineOpen ? 'Hide' : 'Refine'}
+                <span className={`text-[9px] inline-block transition-transform ${refineOpen ? 'rotate-180' : ''}`}>▼</span>
+              </button>
             </div>
-          )}
 
-          {/* Refine accordion — only shown when arriving pre-filled from landing page */}
-          {showRefineStrip && (() => {
-            const hasNonDefaults = frequency !== 'One-time' || pets || extras.length > 0;
-            return (
-              <details className="card border border-brand-200 bg-brand-50 group" open={hasNonDefaults}>
-                <summary className="flex items-center justify-between cursor-pointer list-none select-none">
-                  <span className="text-xs font-semibold text-brand-700 uppercase tracking-wide">Refine your estimate</span>
-                  <span className="text-brand-500 text-lg leading-none transition-transform group-open:rotate-180">⌄</span>
-                </summary>
-
-                <div className="mt-4 space-y-4">
+            {refineOpen && (
+              <div className="px-4 pb-5 pt-1 border-t border-stone-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-4">
+                  {/* Cleaning type */}
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Cleaning type</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CLEANING_TYPES.map(t => (
+                        <button key={t} type="button" onClick={() => setCleaningType(t)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors
+                            ${cleaningType === t ? 'bg-brand-50 border-brand-600 text-brand-800' : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'}`}>
+                          {t.replace(' Cleaning', '').replace('/Move-In', '')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   {/* Frequency */}
-                  <div>
-                    <label className="label mb-2">Frequency</label>
-                    <div className="flex flex-wrap gap-2">
-                      {CLEAN_FREQUENCIES.map(freq => (
-                        <button key={freq} type="button" onClick={() => setFrequency(freq)}
-                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                            frequency === freq
-                              ? 'bg-brand-600 text-white border-brand-600'
-                              : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                          }`}>
-                          {freq}
-                          {freq !== 'One-time' && (
-                            <span className={`ml-1.5 text-xs ${frequency === freq ? 'text-brand-200' : 'text-gray-400'}`}>
-                              {Math.round((1 - FREQ_MULTIPLIER[freq]) * 100)}% less time
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Pets */}
-                  <div>
-                    <label className="label mb-2">Pets in the home?</label>
-                    <div className="flex gap-2">
-                      {(['No', 'Yes'] as const).map(opt => (
-                        <button key={opt} type="button" onClick={() => setPets(opt === 'Yes')}
-                          className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                            (opt === 'Yes') === pets
-                              ? 'bg-brand-600 text-white border-brand-600'
-                              : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                          }`}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Extras */}
-                  {REFINE_EXTRAS.length > 0 && (
+                  {(cleaningType === 'Standard Cleaning' || cleaningType === 'Deep Cleaning') && (
                     <div>
-                      <label className="label mb-2">
-                        Extras
-                        {cleaningType === 'Deep Cleaning' && (
-                          <span className="ml-2 text-xs text-brand-600 font-normal normal-case">oven, fridge &amp; windows included in Deep Clean</span>
-                        )}
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {REFINE_EXTRAS.map(e => (
-                          <button key={e.id} type="button"
-                            onClick={() => setExtras(prev =>
-                              prev.includes(e.id) ? prev.filter(x => x !== e.id) : [...prev, e.id]
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Frequency</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CLEAN_FREQUENCIES.map(f => (
+                          <button key={f} type="button" onClick={() => setFrequency(f)}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors
+                              ${frequency === f ? 'bg-brand-50 border-brand-600 text-brand-800' : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'}`}>
+                            {f}
+                            {f !== 'One-time' && (
+                              <span className={`ml-1 text-[10px] ${frequency === f ? 'text-brand-600' : 'text-gray-400'}`}>
+                                −{Math.round((1 - FREQ_MULTIPLIER[f]) * 100)}%
+                              </span>
                             )}
-                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                              extras.includes(e.id)
-                                ? 'bg-brand-600 text-white border-brand-600'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400'
-                            }`}>
-                            {e.label}
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
+                  {/* Condition */}
+                  {cleaningType !== 'Short-Term Rental Turnover' && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Condition</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HOUSE_CONDITIONS.map(c => (
+                          <button key={c} type="button" onClick={() => setHouseCondition(c)}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors
+                              ${houseCondition === c ? 'bg-brand-50 border-brand-600 text-brand-800' : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'}`}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Pets */}
+                  {cleaningType !== 'Short-Term Rental Turnover' && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Pets</div>
+                      <div className="flex gap-1.5">
+                        {(['No', 'Yes'] as const).map(opt => (
+                          <button key={opt} type="button" onClick={() => setPets(opt === 'Yes')}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors
+                              ${(opt === 'Yes') === pets ? 'bg-brand-50 border-brand-600 text-brand-800' : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'}`}>
+                            {opt}{opt === 'Yes' && <span className="ml-1 text-[10px] text-gray-400">+30 min</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Extras — full width */}
+                  {cleaningType !== 'Short-Term Rental Turnover' && (
+                    <div className="sm:col-span-2">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Add-on tasks
+                        {isMoveOut && <span className="ml-2 text-brand-600 normal-case">oven, fridge &amp; windows included</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {EXTRAS.map(e => {
+                          const active = extras.includes(e.id);
+                          const locked = MOVEOUT_LOCKED_EXTRAS.includes(e.id);
+                          return (
+                            <button key={e.id} type="button"
+                              onClick={() => !locked && toggleExtra(e.id)}
+                              disabled={locked}
+                              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer
+                                ${active ? 'bg-brand-50 border-brand-600 text-brand-800' : 'bg-white border-gray-200 text-gray-700 hover:border-brand-300'}
+                                disabled:opacity-60 disabled:cursor-default`}>
+                              {e.label}
+                              <span className={`ml-1 text-[10px] ${active ? 'text-brand-600' : 'text-gray-400'}`}>
+                                +{EXTRA_MINS[e.hours]}m
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Beds / Baths / Sqft steppers */}
+                  <div className="sm:col-span-2 grid grid-cols-3 gap-3">
+                    {([
+                      { label: 'Bedrooms', value: bedrooms, setValue: setBedrooms, min: 0, max: 8, s: 1 },
+                      { label: 'Bathrooms', value: bathrooms, setValue: setBathrooms, min: 0, max: 6, s: 0.5 },
+                      { label: 'Sq ft', value: sqft, setValue: setSqft, min: 400, max: 5000, s: 100 },
+                    ] as const).map(({ label, value, setValue, min, max, s }) => (
+                      <div key={label}>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">{label}</div>
+                        <div className="flex items-center justify-between gap-1 p-1.5 border border-stone-200 rounded-xl bg-white">
+                          <button type="button" onClick={() => setValue(Math.max(min, value - s) as any)}
+                            className="w-7 h-7 rounded-lg bg-amber-50 text-gray-700 flex items-center justify-center text-sm hover:bg-stone-100 transition-colors">
+                            −
+                          </button>
+                          <span style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-sm font-semibold text-gray-900">
+                            {value}
+                          </span>
+                          <button type="button" onClick={() => setValue(Math.min(max, value + s) as any)}
+                            className="w-7 h-7 rounded-lg bg-brand-700 text-white flex items-center justify-center text-sm hover:bg-brand-800 transition-colors">
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </details>
-            );
-          })()}
+              </div>
+            )}
+          </div>
 
+          {/* ── Move-out vacancy reminder ────────────────────────────────────────── */}
+          {cleaningType.toLowerCase().includes('move') && (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-200">
+              <span className="text-blue-500 text-lg shrink-0 mt-0.5">🏠</span>
+              <div>
+                <p className="font-semibold text-blue-800 text-sm">Rooms should be fully empty</p>
+                <p className="text-blue-700 text-xs mt-0.5 leading-relaxed">
+                  Move-Out/Move-In cleaning is designed for vacant properties. Please photograph rooms after all furniture and belongings have been removed.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Auth gate ────────────────────────────────────────────────────────── */}
           {!isAuthenticated ? (
             <div className="card text-center space-y-3">
               <p className="text-sm text-gray-600">Sign in to upload photos and get an AI-powered estimate.</p>
@@ -1000,263 +1322,456 @@ export function EstimatorWidget() {
             </div>
           ) : (
             <>
-              <div className="card bg-brand-50 border border-brand-200">
-                <p className="text-sm font-medium text-brand-800">Upload at least one photo per room</p>
-                <p className="text-xs text-brand-600 mt-1">
-                  Minimum {MIN_TOTAL} photos total · up to {MAX_PER_ROOM} per room · up to {maxTotal} total · JPEG or PNG · 10 MB each
-                </p>
-              </div>
-
-              {/* Upload progress */}
-              <div className="card">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    {totalReady} / {MIN_TOTAL} minimum photos uploaded
-                  </span>
-                  <span className={`text-xs font-medium ${totalReady >= MIN_TOTAL ? 'text-green-600' : 'text-gray-400'}`}>
-                    {totalReady >= MIN_TOTAL ? '✓ Ready to analyse' : `${MIN_TOTAL - totalReady} more needed`}
-                  </span>
+              {/* Mobile live estimate strip */}
+              <div className="lg:hidden rounded-2xl p-3 flex items-center justify-between text-white"
+                style={{ background: 'linear-gradient(135deg, #1F6E64, #17524B)' }}>
+                <div>
+                  <div className="text-[9px] font-bold tracking-widest opacity-80 uppercase">Live Estimate</div>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-xl font-semibold">
+                      {one}–{oneMax}h
+                    </span>
+                    <span className="text-xs opacity-75">· {one > 5 ? '2 cleaners' : '1 cleaner'}</span>
+                  </div>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-brand-600 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, (totalReady / MIN_TOTAL) * 100)}%` }}
-                  />
+                <div className="text-right">
+                  <div className="text-[9px] font-bold tracking-widest opacity-80 uppercase">Price</div>
+                  <div style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-base font-semibold text-amber-300">
+                    ${Math.round(one * getRate(cleaningType, frequency))}–${Math.round(oneMax * getRate(cleaningType, frequency))}
+                  </div>
                 </div>
               </div>
 
-              {/* How to use camera — instructions card (mobile only) */}
-              {isTouchDevice && (
-                <div className="card bg-blue-50 border border-blue-200">
-                  <p className="text-sm font-semibold text-blue-800 mb-1">📷 How to use the live camera</p>
-                  <ol className="text-xs text-blue-700 space-y-1 list-none">
-                    <li>1. Tap <strong>Camera</strong> on any room below to open your phone's camera.</li>
-                    <li>2. Point at the room — the ring fills as you hold steady and <strong>auto-captures</strong>.</li>
-                    <li>3. Or tap the shutter button anytime to capture manually.</li>
-                    <li>4. Move to a different angle and repeat for a more accurate AI estimate.</li>
-                    <li>5. Tap <strong>Done</strong> when finished with that room, then move to the next.</li>
-                  </ol>
-                  <p className="text-xs text-blue-500 mt-2">You can also upload photos from your gallery using the Upload button.</p>
-                </div>
-              )}
+              {/* ── Two-column grid ────────────────────────────────────────────────── */}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
 
-              {/* Living Spaces — controls which rooms appear in the list below */}
-              <div className="card py-3">
-                <div className="flex items-center justify-between">
+                {/* ── LEFT: Photo capture panel ──────────────────────────────────── */}
+                <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-5">
+
+                  {/* Active room label + tips toggle */}
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Include rooms to photograph</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Deselect any rooms you want to skip</p>
-                  </div>
-                  <div className="flex gap-2">
-                    {[
-                      { id: 'kitchen', label: 'Kitchen',     value: includeKitchen,    set: setIncludeKitchen },
-                      { id: 'living',  label: 'Living Room', value: includeLivingRoom, set: setIncludeLivingRoom },
-                    ].map(({ id, label, value, set }) => (
-                      <button key={id} type="button"
-                        onClick={() => {
-                          set((v: boolean) => !v);
-                          const newRoomList = buildRoomList(
-                            bedrooms, bathrooms, extras,
-                            id === 'kitchen'  ? !value : includeKitchen,
-                            id === 'living'   ? !value : includeLivingRoom,
-                          );
-                          setRooms(newRoomList);
-                          setRoomPhotos(prev => {
-                            const next: Record<string, typeof prev[string]> = {};
-                            for (const r of newRoomList) next[r] = prev[r] ?? [];
-                            return next;
-                          });
-                        }}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                          value ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400'
-                        }`}>
-                        {value ? '✓ ' : ''}{label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Per-room sections */}
-              <div className="space-y-3">
-                {rooms.map(room => {
-                  const photos   = roomPhotos[room] ?? [];
-                  const ready    = photos.filter(p => p.s3Key !== null).length;
-                  const canAdd   = photos.length < MAX_PER_ROOM;
-
-                  return (
-                    <div key={room} ref={el => { roomRefsMap.current[room] = el; }}
-                      className={`card border-2 transition-colors ${ready > 0 ? 'border-brand-200' : 'border-gray-100'}`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm text-gray-800">{room}</span>
-                          {photos.length > 0 && (
-                            <span className="text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">
-                              {ready}/{photos.length} ready
-                            </span>
-                          )}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-brand-500 mb-1">Now capturing</div>
+                        <div style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-2xl font-semibold text-gray-900 leading-tight">
+                          {activeRoom ?? rooms[0] ?? 'Select a room'}
                         </div>
-                        {canAdd && (
-                          <div className="flex items-center gap-1.5">
-                            {isTouchDevice && (
-                              <button type="button" onClick={() => openCamera(room)} disabled={uploading}
-                                className="text-xs px-2.5 py-1 rounded-lg border border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors">
-                                📷 Camera
-                              </button>
-                            )}
-                            <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
-                              className="text-xs px-2.5 py-1 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors">
-                              + Upload
-                            </button>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {isTouchDevice ? 'Live camera auto-captures · tap shutter anytime' : 'Click the shutter to open your camera · or upload from gallery'}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setTipsOpen(o => !o)}
+                        className={`px-3 py-1.5 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 flex-shrink-0 ml-4
+                          ${tipsOpen ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-stone-200 text-gray-500 hover:bg-gray-50'}`}>
+                        <span className="w-4 h-4 rounded-full bg-amber-50 text-[10px] font-bold flex items-center justify-center">?</span>
+                        {tipsOpen ? 'Hide tips' : 'How it works'}
+                      </button>
+                    </div>
+
+                    {tipsOpen && (
+                      <div className="mt-3 p-4 rounded-xl text-sm leading-relaxed" style={{ background: '#F3EDDD' }}>
+                        <ol className="space-y-1.5 list-none text-xs text-gray-700">
+                          <li><span className="font-semibold text-brand-700">1.</span> Point at the room — the gold ring fills as the AI auto-captures.</li>
+                          <li><span className="font-semibold text-brand-700">2.</span> Or tap the shutter button to capture manually.</li>
+                          <li><span className="font-semibold text-brand-700">3.</span> Move to a different angle and repeat — aim for 2–5 photos per room.</li>
+                          <li><span className="font-semibold text-brand-700">4.</span> Tap the next room in the dock below when done.</li>
+                        </ol>
+                        <p className="text-[11px] text-gray-400 mt-2 pt-2" style={{ borderTop: '1px solid #E6E1D3' }}>
+                          💡 Live phone camera gives sharper detail than uploaded photos.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Camera viewport */}
+                  {(() => {
+                    const currentRoom = activeRoom ?? rooms[0];
+                    const photoCount = currentRoom ? (roomPhotos[currentRoom] ?? []).filter(p => p.s3Key !== null).length : 0;
+                    const target = MIN_PHOTOS_PER_ROOM;
+                    const pct = Math.min(1, photoCount / target);
+                    const r = 55, circ = 2 * Math.PI * r;
+                    return (
+                      <div className="rounded-2xl overflow-hidden relative bg-[#0F1A18] flex items-center justify-center"
+                        style={{ aspectRatio: '16 / 10' }}>
+                        {/* Subtle grid */}
+                        <div className="absolute inset-0" style={{
+                          backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 12px)',
+                        }}/>
+                        {/* Progress ring */}
+                        <div className="relative flex items-center justify-center z-10">
+                          <div className="w-36 h-36 rounded-full border-2 flex items-center justify-center"
+                            style={{ borderColor: 'rgba(212,169,58,0.7)' }}>
+                            <div className="w-28 h-28 rounded-full flex items-center justify-center"
+                              style={{ background: 'rgba(212,169,58,0.15)' }}>
+                              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                                <path d="M3 9C3 7.9 3.9 7 5 7H8L9.5 5H14.5L16 7H19C20.1 7 21 7.9 21 9V18C21 19.1 20.1 20 19 20H5C3.9 20 3 19.1 3 18Z" stroke="#D4A93A" strokeWidth="1.8" strokeLinejoin="round"/>
+                                <circle cx="12" cy="13" r="4" stroke="#D4A93A" strokeWidth="1.8"/>
+                              </svg>
+                            </div>
                           </div>
+                          <svg width="144" height="144" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
+                            <circle cx="72" cy="72" r={r} fill="none" stroke="#D4A93A" strokeWidth="2.5"
+                              strokeDasharray={`${pct * circ} ${circ}`} strokeLinecap="round"/>
+                          </svg>
+                        </div>
+                        {/* Live status pill */}
+                        <div className="absolute top-4 left-4 rounded-full px-3 py-1.5 flex items-center gap-2 text-xs text-white font-medium"
+                          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}>
+                          {isTouchDevice
+                            ? <><span className="w-2 h-2 rounded-full bg-green-400" style={{ boxShadow: '0 0 6px #4ade80' }}/> Live · auto-captures when steady</>
+                            : <><span className="w-2 h-2 rounded-full bg-green-400" style={{ boxShadow: '0 0 6px #4ade80' }}/> Click shutter to open camera</>}
+                        </div>
+                        {/* Count badge */}
+                        <div className="absolute top-4 right-4 rounded-xl px-3 py-2 text-white"
+                          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}>
+                          <div className="text-[10px] opacity-70 uppercase tracking-wide">This room</div>
+                          <div style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-lg font-semibold">{photoCount} / {target}</div>
+                        </div>
+                        {/* Shutter button — always shown; opens live camera on all devices */}
+                        <button type="button" disabled={uploading}
+                          onClick={() => { const rm = activeRoom ?? rooms[0]; if (rm) openCamera(rm); }}
+                          className="absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full border-4 bg-white flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
+                          style={{ borderColor: 'rgba(255,255,255,0.4)' }}>
+                          <div className="w-12 h-12 rounded-full bg-white border-2 border-gray-900"/>
+                        </button>
+                        {/* Upload from gallery — left side */}
+                        <button type="button" data-testid="gallery-upload-btn" disabled={uploading}
+                          onClick={() => { const rm = activeRoom ?? rooms[0]; if (rm) openFilePicker(rm); }}
+                          className="absolute bottom-5 left-4 rounded-xl text-white text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                          style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)', padding: '9px 12px' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="4" width="18" height="16" rx="2" stroke="white" strokeWidth="1.8"/>
+                            <circle cx="8.5" cy="9.5" r="1.5" stroke="white" strokeWidth="1.8"/>
+                            <path d="M3 17L9 12L13 16L17 13L21 17" stroke="white" strokeWidth="1.8" strokeLinejoin="round"/>
+                          </svg>
+                          Upload
+                        </button>
+                        {/* QR — right side, desktop only */}
+                        {!isTouchDevice && (
+                          <button type="button" onClick={() => setNudgeDismissed(false)}
+                            className="absolute bottom-5 right-4 rounded-xl text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
+                            style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)', padding: '9px 12px' }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                              <rect x="3" y="3" width="7" height="7" rx="1" stroke="white" strokeWidth="1.8"/>
+                              <rect x="14" y="3" width="7" height="7" rx="1" stroke="white" strokeWidth="1.8"/>
+                              <rect x="3" y="14" width="7" height="7" rx="1" stroke="white" strokeWidth="1.8"/>
+                              <path d="M14 14H17V17H14ZM19 14H21M14 19H17M19 17V21" stroke="white" strokeWidth="1.8" strokeLinejoin="round"/>
+                            </svg>
+                            Phone
+                          </button>
                         )}
                       </div>
+                    );
+                  })()}
 
-                      {photos.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {photos.map((p, i) => (
-                            <div key={i} className="relative h-20 w-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                              <img src={p.preview} alt={`${room} ${i + 1}`} className="h-full w-full object-cover" />
-                              {p.s3Key === null && (
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                  <Spinner size="sm" />
-                                </div>
-                              )}
-                              {p.s3Key !== null && (
-                                <button onClick={() => removePhoto(room, i)}
-                                  className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 text-white text-xs flex items-center justify-center hover:bg-red-600">
-                                  ×
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          {canAdd && (
-                            <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
-                              className="h-20 w-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-brand-400 hover:text-brand-500 transition-colors flex-shrink-0 text-2xl">
-                              +
-                            </button>
-                          )}
-                        </div>
-                      ) : isTouchDevice ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <button type="button" onClick={() => openCamera(room)} disabled={uploading}
-                            className="rounded-xl border-2 border-dashed border-blue-200 p-4 text-center hover:border-blue-400 bg-blue-50/40 transition-colors disabled:opacity-50">
-                            <p className="text-lg mb-1">📷</p>
-                            <p className="text-xs text-blue-600 font-medium">Live camera</p>
-                            <p className="text-xs text-blue-400 mt-0.5">Auto-captures</p>
-                          </button>
-                          <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
-                            className="rounded-xl border-2 border-dashed border-gray-200 p-4 text-center hover:border-brand-400 transition-colors disabled:opacity-50">
-                            <p className="text-lg mb-1">🖼️</p>
-                            <p className="text-xs text-gray-500 font-medium">Upload photo</p>
-                            <p className="text-xs text-gray-400 mt-0.5">From gallery</p>
-                          </button>
-                        </div>
-                      ) : (
-                        <button type="button" onClick={() => openFilePicker(room)} disabled={uploading}
-                          className="w-full rounded-xl border-2 border-dashed border-gray-200 p-6 text-center hover:border-brand-400 transition-colors disabled:opacity-50">
-                          <p className="text-2xl mb-1">🖼️</p>
-                          <p className="text-sm text-gray-600 font-medium">Upload photos</p>
-                          <p className="text-xs text-gray-400 mt-0.5">JPEG or PNG · up to 10 MB each</p>
-                        </button>
-                      )}
+                  {/* QR nudge — shown when "Continue on phone" is clicked */}
+                  {!isTouchDevice && !nudgeDismissed && (
+                    <div className="flex items-start gap-4 p-4 rounded-xl bg-amber-50 border border-amber-200">
+                      <Suspense fallback={<div className="w-16 h-16 bg-gray-100 rounded shrink-0"/>}>
+                        <QRCodeSVG value={window.location.href} size={64} className="shrink-0 rounded"/>
+                      </Suspense>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-amber-800 text-sm">Scan to continue on your phone</p>
+                        <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                          Live camera gives the AI much better detail than uploaded photos.
+                        </p>
+                      </div>
+                      <button type="button" onClick={() => setNudgeDismissed(true)} aria-label="Dismiss"
+                        className="text-amber-400 hover:text-amber-700 text-xl leading-none shrink-0 transition-colors">×</button>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
 
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png"
-                multiple onChange={handleFileChange} className="hidden" />
-
-              {/* Camera capture modal — renders full-screen when a room's camera is open */}
-              {cameraRoom && (
-                <CameraCapture
-                  roomName={cameraRoom}
-                  cleaningType={cleaningType}
-                  maxCaptures={cameraMaxCaptures}
-                  isLastRoom={rooms.indexOf(cameraRoom) === rooms.length - 1}
-                  onCapture={file => handleCameraCapture(cameraRoom, file)}
-                  onClose={() => setCameraRoom(null)}
-                />
-              )}
-
-              {uploadError  && <p className="text-xs text-red-600">{uploadError}</p>}
-              {analyzeError && <p className="text-xs text-red-600">{analyzeError}</p>}
-
-              {/* ── Coverage review panel ── */}
-              {showReview && (() => {
-                const missing = rooms.filter(r => !(roomPhotos[r] ?? []).some(p => p.s3Key !== null));
-                return (
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-                    <p className="text-sm font-semibold text-gray-800">Review your coverage</p>
-                    <div className="space-y-1.5">
-                      {rooms.map(r => {
-                        const count = (roomPhotos[r] ?? []).filter(p => p.s3Key !== null).length;
-                        const ok    = count > 0;
+                  {/* ── Room dock ─────────────────────────────────────────────────── */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Rooms to capture</div>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'kitchen', label: 'Kitchen',     value: includeKitchen,    set: setIncludeKitchen },
+                          { id: 'living',  label: 'Living Room', value: includeLivingRoom, set: setIncludeLivingRoom },
+                        ].map(({ id, label, value, set }) => (
+                          <button key={id} type="button" data-testid={`toggle-${id}`} onClick={() => {
+                            set((v: boolean) => !v);
+                            const newRoomList = buildRoomList(
+                              bedrooms, bathrooms, extras,
+                              id === 'kitchen' ? !value : includeKitchen,
+                              id === 'living'  ? !value : includeLivingRoom,
+                            );
+                            setRooms(newRoomList);
+                            setRoomPhotos(prev => {
+                              const next: Record<string, typeof prev[string]> = {};
+                              for (const rm of newRoomList) next[rm] = prev[rm] ?? [];
+                              return next;
+                            });
+                          }}
+                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors
+                              ${value ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'}`}>
+                            {value ? '✓ ' : '+ '}{label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {rooms.map(room => {
+                        const photos  = roomPhotos[room] ?? [];
+                        const ready   = photos.filter(p => p.s3Key !== null).length;
+                        const isActive = (activeRoom ?? rooms[0]) === room;
+                        const done    = ready >= 2;
                         return (
-                          <div key={r} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-base ${ok ? 'text-green-500' : 'text-amber-500'}`}>
-                                {ok ? '✅' : '⚠️'}
-                              </span>
-                              <span className={`text-sm ${ok ? 'text-gray-700' : 'text-amber-700 font-medium'}`}>{r}</span>
+                          <button key={room} type="button"
+                            ref={el => { roomRefsMap.current[room] = el as unknown as HTMLDivElement; }}
+                            onClick={() => setActiveRoom(room)}
+                            className={`flex-shrink-0 min-w-[120px] p-3 rounded-xl text-left border transition-colors
+                              ${isActive
+                                ? 'bg-brand-700 text-white border-brand-700'
+                                : done
+                                  ? 'bg-white text-gray-800 border-brand-200'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:border-brand-200'}`}
+                            style={{ borderWidth: '1.5px' }}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs font-semibold">{room}</span>
+                              {done && (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                  <path d="M4 12.5L10 18L20 7" stroke={isActive ? 'white' : '#1F6E64'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
                             </div>
-                            <span className="text-xs text-gray-400">
-                              {ok ? `${count} photo${count !== 1 ? 's' : ''}` : 'no photos'}
-                            </span>
-                          </div>
+                            <div className="flex gap-1 mb-1">
+                              {Array.from({ length: MIN_PHOTOS_PER_ROOM }).map((_, i) => (
+                                <div key={i} className={`flex-1 h-1 rounded-full ${
+                                  i < ready
+                                    ? (isActive ? 'bg-amber-300' : 'bg-amber-400')
+                                    : (isActive ? 'bg-white/25' : 'bg-gray-100')
+                                }`}/>
+                              ))}
+                            </div>
+                            <div className="text-[10px] opacity-60">{ready}/{MIN_PHOTOS_PER_ROOM} min</div>
+                          </button>
                         );
                       })}
                     </div>
-                    {missing.length > 0 && (
-                      <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                        The AI works best with photos of every room. Missing rooms will be estimated from your home details only.
-                      </p>
-                    )}
-                    <div className="flex gap-2 pt-1">
-                      <button type="button" onClick={() => {
-                          setShowReview(false);
-                          if (missing.length > 0) {
-                            setTimeout(() => {
-                              roomRefsMap.current[missing[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }, 50);
-                          }
-                        }}
-                        className="flex-none px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                        {missing.length > 0 ? 'Add missing photos' : 'Go back'}
+                  </div>
+
+                  {/* Thumbnails for the active room */}
+                  {(() => {
+                    const currentRoom = activeRoom ?? rooms[0];
+                    if (!currentRoom) return null;
+                    const photos = roomPhotos[currentRoom] ?? [];
+                    const canAdd = photos.length < MAX_PER_ROOM;
+                    if (photos.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {photos.map((p, i) => (
+                          <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                            <img src={p.preview} alt={`${currentRoom} ${i + 1}`} className="h-full w-full object-cover"/>
+                            {p.s3Key === null && !p.failed && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Spinner size="sm"/></div>
+                            )}
+                            {p.failed && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => retryPhoto(currentRoom, i)}
+                                  className="absolute inset-0 bg-red-600/85 flex flex-col items-center justify-center text-white gap-0.5 hover:bg-red-600 transition-colors"
+                                  title="Upload failed — tap to retry"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path d="M1 4v6h6M23 20v-6h-6" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                  <span className="text-[9px] font-semibold leading-none">Retry</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removePhoto(currentRoom, i)}
+                                  className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center hover:bg-black z-10"
+                                  title="Remove"
+                                >×</button>
+                              </>
+                            )}
+                            {p.s3Key !== null && (
+                              <button onClick={() => removePhoto(currentRoom, i)}
+                                className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 text-white text-xs flex items-center justify-center hover:bg-red-600">
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        {canAdd && (
+                          <button type="button" onClick={() => openFilePicker(currentRoom)} disabled={uploading}
+                            className="h-16 w-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-brand-400 hover:text-brand-500 transition-colors flex-shrink-0 text-xl disabled:opacity-50">
+                            +
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {uploadError  && <p className="text-xs text-red-600">{uploadError}</p>}
+                  {analyzeError && <p className="text-xs text-red-600">{analyzeError}</p>}
+
+                  {/* Coverage review panel */}
+                  {showReview && (() => {
+                    const missing = rooms.filter(r => !(roomPhotos[r] ?? []).some(p => p.s3Key !== null));
+                    return (
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                        <p className="text-sm font-semibold text-gray-800">Review your coverage</p>
+                        <div className="space-y-1.5">
+                          {rooms.map(r => {
+                            const count = (roomPhotos[r] ?? []).filter(p => p.s3Key !== null).length;
+                            const ok = count > 0;
+                            return (
+                              <div key={r} className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-base ${ok ? 'text-green-500' : 'text-amber-500'}`}>{ok ? '✅' : '⚠️'}</span>
+                                  <span className={`text-sm ${ok ? 'text-gray-700' : 'text-amber-700 font-medium'}`}>{r}</span>
+                                </div>
+                                <span className="text-xs text-gray-400">{ok ? `${count} photo${count !== 1 ? 's' : ''}` : 'no photos'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {missing.length > 0 && (
+                          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                            The AI works best with photos of every room. Missing rooms will be estimated from your home details only.
+                          </p>
+                        )}
+                        <div className="flex gap-2 pt-1">
+                          <button type="button" onClick={() => {
+                            setShowReview(false);
+                            if (missing.length > 0) {
+                              setActiveRoom(missing[0]);
+                              setTimeout(() => {
+                                roomRefsMap.current[missing[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }, 50);
+                            }
+                          }}
+                            className="flex-none px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                            {missing.length > 0 ? 'Add missing photos' : 'Go back'}
+                          </button>
+                          <button type="button" onClick={() => { setShowReview(false); handleAnalyze(); }}
+                            disabled={!canAnalyze || analyzing}
+                            className="flex-1 btn-primary py-2.5 flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                            {missing.length > 0 ? 'Analyse anyway' : `Analyse ${totalReady} photos with AI`}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Back + Analyse CTA */}
+                  {!showReview && (
+                    <div className="flex gap-3">
+                      <button type="button" onClick={() => setStep(0)}
+                        className="px-4 py-3 rounded-xl border border-stone-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors flex-shrink-0">
+                        ← Back to home details
                       </button>
-                      <button type="button" onClick={() => { setShowReview(false); handleAnalyze(); }}
+                      <button type="button" onClick={() => setShowReview(true)}
                         disabled={!canAnalyze || analyzing}
-                        className="flex-1 btn-primary py-2.5 flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
-                        {missing.length > 0 ? 'Analyse anyway' : `Analyse ${totalReady} photos with AI`}
+                        className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50">
+                        {analyzing
+                          ? <><Spinner size="sm"/> Analysing rooms…</>
+                          : <>
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 3L13.5 10.5L21 12L13.5 13.5L12 21L10.5 13.5L3 12L10.5 10.5Z" fill="white"/>
+                              </svg>
+                              {canAnalyze
+                                ? `Analyse ${totalReady} photo${totalReady !== 1 ? 's' : ''} with AI →`
+                                : `${rooms.length - roomsReady} room${rooms.length - roomsReady === 1 ? '' : 's'} still need ${MIN_PHOTOS_PER_ROOM} photos`}
+                            </>}
                       </button>
                     </div>
-                  </div>
-                );
-              })()}
+                  )}
 
-              {!showReview && (
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => setStep(0)}
-                    className="flex-none px-4 py-3 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                    ← Back
-                  </button>
-                  <button type="button"
-                    onClick={() => setShowReview(true)}
-                    disabled={!canAnalyze || analyzing}
-                    className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                    {analyzing
-                      ? <><Spinner size="sm" /> Analysing rooms…</>
-                      : `Analyse ${totalReady} photo${totalReady !== 1 ? 's' : ''} with AI`}
-                  </button>
+                  {analyzing && (
+                    <p className="text-xs text-gray-400 text-center">AI is analysing each room… this usually takes 15–30 seconds.</p>
+                  )}
+
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif"
+                    multiple onChange={handleFileChange} className="hidden"/>
+
+                  {cameraRoom && (
+                    <CameraCapture
+                      roomName={cameraRoom}
+                      cleaningType={cleaningType}
+                      maxCaptures={cameraMaxCaptures}
+                      isLastRoom={rooms.indexOf(cameraRoom) === rooms.length - 1}
+                      onCapture={file => handleCameraCapture(cameraRoom, file)}
+                      onClose={() => setCameraRoom(null)}
+                    />
+                  )}
                 </div>
-              )}
 
-              {analyzing && (
-                <p className="text-xs text-gray-400 text-center">
-                  AI is analysing each room… this usually takes 15–30 seconds.
-                </p>
-              )}
+                {/* ── RIGHT: Sticky estimate sidebar ───────────────────────────── */}
+                <div className="hidden lg:flex flex-col gap-3 sticky top-6">
+                  {/* Live estimate card */}
+                  {(() => {
+                    const rate     = getRate(cleaningType, frequency);
+                    const priceMin = Math.round(one * rate);
+                    const priceMax = Math.round(oneMax * rate);
+                    const cleaners = one > 5 ? 2 : 1;
+                    const onSite   = cleaners === 2 ? one / 2 : one;
+                    return (
+                      <div className="rounded-2xl p-6 text-white"
+                        style={{ background: 'linear-gradient(180deg, #1F6E64 0%, #17524B 100%)', boxShadow: '0 20px 40px rgba(31,110,100,0.22)' }}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-[10px] font-bold tracking-widest opacity-80 uppercase">Live Estimate</div>
+                          <span className="text-[10px] px-2 py-1 rounded-full font-bold"
+                            style={{ background: 'rgba(212,169,58,0.22)', color: '#D4A93A' }}>FORMULA</span>
+                        </div>
+                        <div className="flex items-baseline gap-2 my-1">
+                          <span style={{ fontFamily: 'Fraunces, Georgia, serif' }} className="text-5xl font-semibold leading-none tracking-tight">
+                            {onSite.toFixed(1)}
+                          </span>
+                          <span className="text-lg opacity-80 font-medium">hrs</span>
+                        </div>
+                        <div className="text-sm opacity-75 mb-4">{cleaners} cleaner{cleaners > 1 ? 's' : ''} on site</div>
+                        <div className="flex items-baseline justify-between pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }}>
+                          <span className="text-xs opacity-70">Price range</span>
+                          <span style={{ fontFamily: 'Fraunces, Georgia, serif', color: '#D4A93A' }} className="text-2xl font-semibold">
+                            ${priceMin}–${priceMax}
+                          </span>
+                        </div>
+                        <div className="text-[11px] opacity-55 mt-2">Updates as you refine. AI tightens the range after photo review.</div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Photo progress card */}
+                  <div className="bg-white rounded-2xl p-4 border border-stone-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-gray-800">{roomsReady} / {rooms.length} rooms ready</span>
+                      <span className={`text-xs font-semibold ${canAnalyze ? 'text-green-600' : 'text-gray-400'}`}>
+                        {canAnalyze ? '✓ Ready' : `${rooms.length - roomsReady} to go`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F3EDDD' }}>
+                      <div className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${rooms.length > 0 ? Math.min(100, (roomsReady / rooms.length) * 100) : 0}%`,
+                          background: 'linear-gradient(90deg, #1F6E64, #D4A93A)',
+                        }}/>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+                      {rooms.length === 1 ? '2 photos min to analyse' : `${MIN_PHOTOS_PER_ROOM} photos min per room`} · up to {MAX_PER_ROOM} per room · JPEG/PNG · 10 MB each
+                    </div>
+                  </div>
+
+                  {/* Privacy strip */}
+                  <div className="bg-white rounded-2xl p-4 border border-stone-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 3L20 6V12C20 17 16 20.5 12 22C8 20.5 4 17 4 12V6Z" stroke="#1F6E64" strokeWidth="1.8" strokeLinejoin="round"/>
+                        <path d="M8.5 12.5L11 15L16 10" stroke="#1F6E64" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="text-xs font-semibold text-gray-800">Photos used only for estimating</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Never shown to maids without your permission.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </>

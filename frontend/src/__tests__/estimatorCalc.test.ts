@@ -152,12 +152,6 @@ describe('calcHours — extras (Standard Cleaning)', () => {
     expect(r.one).toBe(5);
   });
 
-  it('laundry adds 0.5h before multiplier', () => {
-    // (3.20 + 0.5) = 3.7 → ≤4 → ceil(7.4)/2 = 4
-    const r = calcHours(2, 1, 1000, 'Standard Cleaning', 'Normal', false, 'Rarely', 'Light', ['laundry']);
-    expect(r.one).toBe(4);
-  });
-
   it('garage adds 0.75h before multiplier', () => {
     // (3.20 + 0.75) = 3.95 → ≤4 → ceil(7.9)/2 = 4
     const r = calcHours(2, 1, 1000, 'Standard Cleaning', 'Normal', false, 'Rarely', 'Light', ['garage']);
@@ -172,10 +166,10 @@ describe('calcHours — extras (Standard Cleaning)', () => {
 });
 
 describe('calcHours — Move-Out ignores extras', () => {
-  it('ignores basement, laundry, garage for move-out', () => {
-    const withExtras    = calcHours(2, 1, 1000, 'Move-Out/Move-In Cleaning', 'Normal', false, 'Rarely', 'Light', ['basement', 'laundry', 'garage']);
+  it('basement and garage add time for move-out', () => {
+    const withExtras    = calcHours(2, 1, 1000, 'Move-Out/Move-In Cleaning', 'Normal', false, 'Rarely', 'Light', ['basement', 'garage']);
     const withoutExtras = calcHours(2, 1, 1000, 'Move-Out/Move-In Cleaning', 'Normal', false, 'Rarely', 'Light', []);
-    expect(withExtras.one).toBe(withoutExtras.one);
+    expect(withExtras.one).toBeGreaterThan(withoutExtras.one);
   });
 
   it('ignores oven, refrigerator, windows for move-out', () => {

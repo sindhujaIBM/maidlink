@@ -72,10 +72,9 @@ export function calcHours(
   const residualSqft = Math.max(0, sqft - bedrooms * 175 - bathrooms * 65);
   let base = bedrooms * 0.65 + bathrooms * 1.0 + residualSqft / 650;
 
-  // Location extras: added before cleaning-type multiplier, ignored for move-out and STR
-  if (!isMoveOut && !isSTR) {
+  // Location extras: added before cleaning-type multiplier; basement/garage apply for move-out too
+  if (!isSTR) {
     if (extras.includes('basement')) base += 1;
-    if (extras.includes('laundry'))  base += 0.5;
     if (extras.includes('garage'))   base += 0.75;
   }
 
