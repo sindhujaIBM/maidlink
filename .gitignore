@@ -58,3 +58,6 @@ secrets/
 *.snap
 test-results/
 playwright-report/
+
+# Security audit (internal, not for public repo)
+SECURITY_AUDIT.md

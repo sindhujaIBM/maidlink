@@ -10,9 +10,8 @@
 
 import axios from 'axios';
 
-const TOKEN_KEY         = 'maidlink_token';
-const REFRESH_TOKEN_KEY = 'maidlink_refresh_token';
-const USER_KEY          = 'maidlink_user';
+const TOKEN_KEY = 'maidlink_token';
+const USER_KEY  = 'maidlink_user';
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -20,7 +19,6 @@ function getToken() {
 
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   window.location.href = '/';
 }
@@ -29,15 +27,12 @@ let isRefreshing = false;
 let refreshQueue: Array<(token: string) => void> = [];
 
 async function attemptTokenRefresh(): Promise<string | null> {
-  const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-  if (!storedRefreshToken) return null;
-
   const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || '/api/auth';
   try {
-    const res = await axios.post(`${AUTH_BASE}/auth/refresh`, { refreshToken: storedRefreshToken });
-    const { accessToken, refreshToken: newRefreshToken, user } = res.data.data;
+    // Refresh token is sent automatically via HttpOnly cookie
+    const res = await axios.post(`${AUTH_BASE}/auth/refresh`, {}, { withCredentials: true });
+    const { accessToken, user } = res.data.data;
     localStorage.setItem(TOKEN_KEY, accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     return accessToken;
   } catch {

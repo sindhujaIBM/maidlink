@@ -198,7 +198,9 @@ resources:
         CorsConfiguration:
           CorsRules:
             - AllowedOrigins:
-                - '*'
+                - 'https://maidlink.ca'
+                - 'https://www.maidlink.ca'
+                - 'http://localhost:5173'
               AllowedMethods:
                 - GET
                 - PUT

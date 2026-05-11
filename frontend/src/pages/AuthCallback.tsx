@@ -38,8 +38,8 @@ export function AuthCallback() {
         const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI
           || `${window.location.origin}/auth/callback`;
 
-        const { accessToken, refreshToken, user } = await exchangeGoogleCode(code, redirectUri);
-        login(accessToken, user, refreshToken);
+        const { accessToken, user } = await exchangeGoogleCode(code, redirectUri);
+        login(accessToken, user);
         const returnTo = sessionStorage.getItem('authReturnTo') || '/dashboard';
         sessionStorage.removeItem('authReturnTo');
         navigate(returnTo);

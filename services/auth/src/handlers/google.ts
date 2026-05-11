@@ -91,20 +91,27 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
         maidProfileId,
       });
 
-      // 5. Issue refresh token (30-day, single-use rotation)
+      // 5. Issue refresh token (30-day, single-use rotation) delivered as HttpOnly cookie
       const refreshToken = randomBytes(32).toString('hex');
       await client.query(
         `INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + $3::interval)`,
         [user.id, refreshToken, `${REFRESH_TTL_DAYS} days`]
       );
 
+      const isProd = process.env.NODE_ENV === 'prod' || process.env.NODE_ENV === 'production';
+      const cookieFlags = isProd
+        ? `HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${REFRESH_TTL_DAYS * 24 * 60 * 60}`
+        : `HttpOnly; SameSite=Lax; Path=/; Max-Age=${REFRESH_TTL_DAYS * 24 * 60 * 60}`;
+
       return {
         statusCode: 200,
-        headers: corsHeaders,
+        headers: {
+          ...corsHeaders,
+          'Set-Cookie': `ml_rt=${refreshToken}; ${cookieFlags}`,
+        },
         body: JSON.stringify({
           data: {
             accessToken,
-            refreshToken,
             user: {
               id:       user.id,
               email:    user.email,

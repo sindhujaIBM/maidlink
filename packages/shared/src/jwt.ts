@@ -5,12 +5,13 @@ import { UnauthorizedError } from './errors';
 function getSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET environment variable is not set');
+  if (secret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters');
   return secret;
 }
 
-/** Signs a JWT with 24-hour expiry. */
+/** Signs a JWT with 15-minute expiry. */
 export function signToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, getSecret(), { expiresIn: '24h', algorithm: 'HS256' });
+  return jwt.sign(payload, getSecret(), { expiresIn: '15m', algorithm: 'HS256' });
 }
 
 /**

@@ -7,7 +7,7 @@ import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
-import { withAuth, ok, ForbiddenError, getPool } from '@maidlink/shared';
+import { withAuth, ok, getPool } from '@maidlink/shared';
 
 const s3     = new S3Client({ region: process.env.AWS_REGION || 'ca-west-1' });
 const ses    = new SESClient({ region: 'us-east-1' });
@@ -21,8 +21,7 @@ async function getPhotoUrl(key: string): Promise<string> {
   );
 }
 
-export const listHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
-  if (!auth.roles.includes('ADMIN')) throw new ForbiddenError('Admins only');
+export const listHandler = withAuth(async (event: APIGatewayProxyEvent) => {
 
   const page  = Math.max(1, parseInt(event.queryStringParameters?.page  ?? '1',  10));
   const limit = Math.min(50, parseInt(event.queryStringParameters?.limit ?? '20', 10));
@@ -80,10 +79,9 @@ export const listHandler = withAuth(async (event: APIGatewayProxyEvent, auth) =>
   );
 
   return ok({ items, total, page, limit });
-});
+}, ['ADMIN']);
 
 export const feedbackHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
-  if (!auth.roles.includes('ADMIN')) throw new ForbiddenError('Admins only');
 
   const id = event.pathParameters?.id;
   if (!id) return { statusCode: 400, headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: 'Missing analysis id' }) };
@@ -154,4 +152,4 @@ export const feedbackHandler = withAuth(async (event: APIGatewayProxyEvent, auth
   }
 
   return ok({ success: true });
-});
+}, ['ADMIN']);

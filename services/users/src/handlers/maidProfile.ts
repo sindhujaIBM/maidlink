@@ -130,7 +130,11 @@ export const updateHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
   const values: unknown[] = [];
   let idx = 1;
 
-  if (body.bio !== undefined)         { fields.push(`bio = $${idx++}`);               values.push(body.bio); }
+  if (body.bio !== undefined)         {
+    if (body.bio.length > 2000) throw new ValidationError('bio must be 2000 characters or fewer');
+    fields.push(`bio = $${idx++}`);
+    values.push(body.bio);
+  }
   if (body.hourlyRate !== undefined)  {
     if (body.hourlyRate <= 0) throw new ValidationError('hourlyRate must be positive');
     fields.push(`hourly_rate = $${idx++}`);

@@ -19,7 +19,7 @@ provider:
     DB_PORT: ${env:DB_PORT, '5432'}
     DB_NAME: ${env:DB_NAME, 'maidlink'}
     DB_USER: ${env:DB_USER, 'maidlink_dev'}
-    DB_PASSWORD: ${env:DB_PASSWORD, 'devpassword'}
+    DB_PASSWORD: ${env:DB_PASSWORD}
     DB_SSL: ${env:DB_SSL, 'false'}
     JWT_SECRET: ${env:JWT_SECRET}
     GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID}
@@ -30,6 +30,10 @@ provider:
     subnetIds:
       - subnet-0a8738edb8eff6309
       - subnet-06ab0c4c50c4a06bc
+  apiGateway:
+    throttle:
+      burstLimit: 20
+      rateLimit: 10
 
 functions:
   googleExchange:
@@ -71,6 +75,7 @@ functions:
               - Authorization
             allowCredentials: true
 
+  # devLogin: blocked in handler when NODE_ENV === 'prod' — only functional via serverless-offline.
   devLogin:
     handler: src/handlers/devLogin.handler
     events:

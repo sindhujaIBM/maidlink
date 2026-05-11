@@ -10,7 +10,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   withAuth, ok, created, noContent, getPool,
-  ValidationError, NotFoundError, ForbiddenError, ConflictError,
+  ValidationError, NotFoundError, ConflictError,
   isCalgaryPostal,
   assertMinDuration, assertFutureDate, assertValidDateRange,
 } from '@maidlink/shared';
@@ -48,6 +48,7 @@ export const createHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
   if (!body.endAt)        throw new ValidationError('endAt is required');
   if (!body.addressLine1) throw new ValidationError('addressLine1 is required');
   if (!body.postalCode)   throw new ValidationError('postalCode is required');
+  if (body.notes && body.notes.length > 5000) throw new ValidationError('notes must be 5000 characters or fewer');
 
   const startAt = new Date(body.startAt);
   const endAt   = new Date(body.endAt);
@@ -223,12 +224,13 @@ export const getOneHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
 
   if (!row) throw new NotFoundError('Booking not found');
 
-  // Only the customer or the maid can view the booking
+  // Only the customer, the assigned maid, or an admin can view the booking.
+  // Return NotFoundError (not ForbiddenError) to avoid confirming the booking exists.
   const isMaidOwner = row.maid_user_id === auth.userId;
   const isCustomer  = row.customer_id === auth.userId;
   const isAdmin     = auth.roles.includes('ADMIN');
   if (!isMaidOwner && !isCustomer && !isAdmin) {
-    throw new ForbiddenError('Access denied');
+    throw new NotFoundError('Booking not found');
   }
 
   const [beforePhotoUrls, afterPhotoUrls] = await Promise.all([
@@ -260,7 +262,7 @@ export const completeHandler = withAuth(async (event: APIGatewayProxyEvent, auth
   const isCustomer  = booking.customer_id === auth.userId;
   const isAdmin     = auth.roles.includes('ADMIN');
   if (!isMaidOwner && !isCustomer && !isAdmin) {
-    throw new ForbiddenError('Access denied');
+    throw new NotFoundError('Booking not found');
   }
 
   if (booking.status === 'COMPLETED') {
@@ -313,7 +315,7 @@ export const cancelHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
   const isCustomer  = booking.customer_id === auth.userId;
   const isAdmin     = auth.roles.includes('ADMIN');
   if (!isMaidOwner && !isCustomer && !isAdmin) {
-    throw new ForbiddenError('Access denied');
+    throw new NotFoundError('Booking not found');
   }
 
   if (booking.status === 'CANCELLED') {

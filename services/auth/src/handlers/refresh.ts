@@ -17,9 +17,15 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
   const origin = corsOrigin(event);
   const corsHeaders = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Content-Type': 'application/json' };
   try {
-    if (!event.body) throw new ValidationError('Request body is required');
+    // Read refresh token from HttpOnly cookie (preferred) or body (legacy fallback)
+    const cookieHeader = event.headers?.cookie ?? event.headers?.Cookie ?? '';
+    const cookieMatch  = cookieHeader.match(/(?:^|;\s*)ml_rt=([^;]+)/);
+    let refreshToken   = cookieMatch?.[1];
 
-    const { refreshToken } = JSON.parse(event.body) as { refreshToken?: string };
+    if (!refreshToken && event.body) {
+      const parsed = JSON.parse(event.body) as { refreshToken?: string };
+      refreshToken = parsed.refreshToken;
+    }
     if (!refreshToken) throw new ValidationError('refreshToken is required');
 
     const pool = getPool();
@@ -31,7 +37,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       const { rows: [rt] } = await client.query<{
         id: string; user_id: string; expires_at: string; revoked_at: string | null;
       }>(
-        `SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens WHERE token = $1`,
+        `SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens WHERE token = $1 FOR UPDATE`,
         [refreshToken]
       );
 
@@ -73,13 +79,20 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
       await client.query('COMMIT');
 
+      const isProd = process.env.NODE_ENV === 'prod' || process.env.NODE_ENV === 'production';
+      const cookieFlags = isProd
+        ? `HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${REFRESH_TTL_DAYS * 24 * 60 * 60}`
+        : `HttpOnly; SameSite=Lax; Path=/; Max-Age=${REFRESH_TTL_DAYS * 24 * 60 * 60}`;
+
       return {
         statusCode: 200,
-        headers: corsHeaders,
+        headers: {
+          ...corsHeaders,
+          'Set-Cookie': `ml_rt=${newRefreshToken}; ${cookieFlags}`,
+        },
         body: JSON.stringify({
           data: {
             accessToken,
-            refreshToken: newRefreshToken,
             user: {
               id:           user.id,
               email:        user.email,

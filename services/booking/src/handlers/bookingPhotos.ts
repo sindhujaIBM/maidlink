@@ -52,6 +52,7 @@ export const getUploadUrlHandler = withAuth(async (event: APIGatewayProxyEvent, 
 export const submitHandler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
   const id = event.pathParameters?.id;
   if (!id) throw new NotFoundError('Booking ID is required');
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ValidationError('Invalid booking ID format');
   if (!event.body) throw new ValidationError('Request body is required');
 
   const { s3Keys } = JSON.parse(event.body) as { s3Keys: string[] };

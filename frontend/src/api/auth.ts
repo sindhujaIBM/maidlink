@@ -1,10 +1,9 @@
 import { authClient } from './client';
 
 export async function exchangeGoogleCode(code: string, redirectUri: string) {
-  const res = await authClient.post('/auth/google', { code, redirectUri });
+  const res = await authClient.post('/auth/google', { code, redirectUri }, { withCredentials: true });
   return res.data.data as {
     accessToken: string;
-    refreshToken: string;
     user: {
       id: string;
       email: string;
@@ -20,11 +19,11 @@ export async function getMe() {
   return res.data.data;
 }
 
-export async function refreshAccessToken(refreshToken: string) {
-  const res = await authClient.post('/auth/refresh', { refreshToken });
+export async function refreshAccessToken() {
+  // Refresh token is sent automatically via HttpOnly cookie
+  const res = await authClient.post('/auth/refresh', {}, { withCredentials: true });
   return res.data.data as {
     accessToken: string;
-    refreshToken: string;
     user: {
       id: string;
       email: string;

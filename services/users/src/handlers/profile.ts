@@ -41,6 +41,7 @@ export const updateHandler = withAuth(async (event: APIGatewayProxyEvent, auth) 
 
   if (body.fullName !== undefined) {
     if (!body.fullName.trim()) throw new ValidationError('fullName cannot be empty');
+    if (body.fullName.length > 255) throw new ValidationError('fullName must be 255 characters or fewer');
     fields.push(`full_name = $${idx++}`);
     values.push(body.fullName.trim());
   }

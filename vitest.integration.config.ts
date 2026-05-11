@@ -30,7 +30,7 @@ export default defineConfig({
       DB_USER:       'maidlink_dev',
       DB_PASSWORD:   'devpassword',
       DB_SSL:        'false',
-      JWT_SECRET:    'test-secret-integration',
+      JWT_SECRET:    'test-secret-integration-at-least-32-chars',
       PHOTOS_BUCKET: 'test-bucket',
       AWS_REGION:    'ca-west-1',
     },

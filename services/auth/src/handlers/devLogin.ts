@@ -13,7 +13,7 @@ import { getPool, signToken, toErrorResponse, corsOrigin, ValidationError, NotFo
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   const origin = corsOrigin(event);
   const corsHeaders = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Content-Type': 'application/json' };
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod') {
     return {
       statusCode: 403,
       headers: corsHeaders,

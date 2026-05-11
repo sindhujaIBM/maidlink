@@ -63,12 +63,8 @@ export function MaidSetupPage() {
     qc.invalidateQueries({ queryKey: ['myMaidProfile'] });
     if (isNew) {
       try {
-        const storedRefresh = localStorage.getItem('maidlink_refresh_token');
-        if (storedRefresh) {
-          const { accessToken, refreshToken: newRefresh, user } = await refreshAccessToken(storedRefresh);
-          localStorage.setItem('maidlink_refresh_token', newRefresh);
-          updateSession(accessToken, user);
-        }
+        const { accessToken, user } = await refreshAccessToken();
+        updateSession(accessToken, user);
       } catch { /* non-fatal — token will update on next sign-in */ }
     }
     navigate('/maid/availability');
