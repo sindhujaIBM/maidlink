@@ -211,25 +211,25 @@ describe('POST /users/me/estimator/analyze — validation', () => {
 // ── Analyse handler — rate limiting ──────────────────────────────────────────
 
 describe('POST /users/me/estimator/analyze — rate limiting', () => {
-  it('returns 403 once the daily limit of 5 analyses is reached', async () => {
+  it('returns 403 once the lifetime limit of 2 analyses is reached', async () => {
     const user  = await seedUser(pool);
     const token = makeToken(user.id);
 
-    // Seed 5 analyses directly (counts as 5 in the 24-hour window)
-    for (let i = 0; i < 5; i++) {
+    // Seed 2 analyses directly (exhausts the lifetime limit)
+    for (let i = 0; i < 2; i++) {
       await pool.query(`INSERT INTO estimator_analyses (user_id) VALUES ($1)`, [user.id]);
     }
 
     const res = await analyzeHandler(makeEvent({ token, body: validAnalyzeBody() }), {} as never);
     expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body).error.message).toMatch(/daily limit/i);
+    expect(JSON.parse(res.body).error.message).toMatch(/complimentary AI analyses/i);
   });
 
   it('does not apply one user\'s limit to another user', async () => {
     const userA = await seedUser(pool);
     const userB = await seedUser(pool);
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 2; i++) {
       await pool.query(`INSERT INTO estimator_analyses (user_id) VALUES ($1)`, [userA.id]);
     }
 
@@ -240,16 +240,14 @@ describe('POST /users/me/estimator/analyze — rate limiting', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('allows a new analysis once old ones roll past the 24-hour window', async () => {
+  it('allows ADMIN users to bypass the lifetime limit', async () => {
     const user  = await seedUser(pool);
-    const token = makeToken(user.id);
+    const token = makeToken(user.id, { roles: ['ADMIN'] });
 
-    // 5 analyses backdated 25 hours — outside the window
-    await pool.query(
-      `INSERT INTO estimator_analyses (user_id, created_at)
-       SELECT $1, NOW() - INTERVAL '25 hours' FROM generate_series(1, 5)`,
-      [user.id],
-    );
+    // Seed 2 analyses — would block a regular user
+    for (let i = 0; i < 2; i++) {
+      await pool.query(`INSERT INTO estimator_analyses (user_id) VALUES ($1)`, [user.id]);
+    }
 
     mockBedrockResponse();
 

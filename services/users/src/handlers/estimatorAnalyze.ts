@@ -8,7 +8,7 @@
  *   - Overall 1-cleaner / 2-cleaner hour estimate
  *   - AI-generated cleaning checklist customised to what was seen in photos
  *
- * Rate-limited to 5 analyses per user per 24 hours.
+ * Rate-limited to 2 lifetime analyses per user. ADMIN role is exempt.
  */
 
 import type { APIGatewayProxyEvent } from 'aws-lambda';
@@ -22,7 +22,7 @@ import { getObjectAsBase64 } from '../lib/s3';
 
 const ses = new SESClient({ region: 'us-east-1' });
 
-const DAILY_LIMIT     = 5;
+const LIFETIME_LIMIT  = 2;
 const MAX_PHOTOS_PER_ROOM = 5;   // per-room cap; total cap = rooms.length × this
 const bedrock         = new BedrockRuntimeClient({ region: 'us-west-2' });
 const NOVA_LITE_MODEL  = 'us.amazon.nova-lite-v1:0';
@@ -329,16 +329,16 @@ export const handler = withAuth(async (event: APIGatewayProxyEvent, auth) => {
     if (!key.startsWith('estimator-photos/')) throw new ValidationError('Invalid photo key');
   }
 
-  // ── Rate limit: 5 analyses per user per 24 hours ──────────────────────────
+  // ── Rate limit: 2 lifetime analyses per user (ADMIN exempt) ──────────────
   const pool = getPool();
-  const { rows: [{ count }] } = await pool.query<{ count: string }>(
-    `SELECT COUNT(*)::text AS count
-     FROM estimator_analyses
-     WHERE user_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
-    [auth.userId]
-  );
-  if (parseInt(count, 10) >= DAILY_LIMIT) {
-    throw new ForbiddenError(`Daily limit of ${DAILY_LIMIT} AI analyses reached. Try again tomorrow.`);
+  if (!auth.roles.includes('ADMIN')) {
+    const { rows: [{ count }] } = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM estimator_analyses WHERE user_id = $1`,
+      [auth.userId]
+    );
+    if (parseInt(count, 10) >= LIFETIME_LIMIT) {
+      throw new ForbiddenError(`You have used your ${LIFETIME_LIMIT} complimentary AI analyses. Contact us to book directly.`);
+    }
   }
 
   // Log before calling Bedrock (counts even on failure to prevent rapid-retry abuse)
