@@ -136,7 +136,7 @@ functions:
 
   estimatorAnalyze:
     handler: src/handlers/estimatorAnalyze.handler
-    timeout: 60   # Bedrock inference can take up to ~30s for multi-image requests
+    timeout: 29   # API Gateway hard-caps at 30s; 29s leaves margin for Lambda overhead
     events:
       - http:
           path: /users/me/estimator/analyze
