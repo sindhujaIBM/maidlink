@@ -3,6 +3,28 @@ import { useState } from 'react';
 const CLEANING_TYPES = ['Standard Cleaning', 'Deep Cleaning', 'Move-Out/Move-In Cleaning'];
 const SQFT_RANGES    = ['Under 500', '500-1000', '1000-1500', '1500-2000', '2000-2500', '2500+'];
 
+function sqftToRange(sqft: number): string {
+  if (sqft < 500)  return 'Under 500';
+  if (sqft < 1000) return '500-1000';
+  if (sqft < 1500) return '1000-1500';
+  if (sqft < 2000) return '1500-2000';
+  if (sqft < 2500) return '2000-2500';
+  return '2500+';
+}
+
+function readPrefill() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('estimator_form_state') ?? 'null');
+    if (!s) return null;
+    return {
+      bedrooms:     typeof s.bedrooms     === 'number' ? s.bedrooms     : 2,
+      bathrooms:    typeof s.bathrooms    === 'number' ? s.bathrooms    : 1,
+      sqftRange:    typeof s.sqft         === 'number' ? sqftToRange(s.sqft) : '1000-1500',
+      cleaningType: typeof s.cleaningType === 'string' ? s.cleaningType : 'Standard Cleaning',
+    };
+  } catch { return null; }
+}
+
 interface HomeDetails {
   rooms:        string[];
   cleaningType: string;
@@ -12,14 +34,17 @@ interface HomeDetails {
 }
 
 interface Props {
-  onStart: (details: HomeDetails) => void;
+  onStart:   (details: HomeDetails) => void;
+  onUnlock?: () => void;
 }
 
-export function LiveRoomSetup({ onStart }: Props) {
-  const [bedrooms,     setBedrooms]     = useState(2);
-  const [bathrooms,    setBathrooms]    = useState(1);
-  const [sqftRange,    setSqftRange]    = useState('1000-1500');
-  const [cleaningType, setCleaningType] = useState('Standard Cleaning');
+export function LiveRoomSetup({ onStart, onUnlock }: Props) {
+  const prefill = readPrefill();
+
+  const [bedrooms,     setBedrooms]     = useState(prefill?.bedrooms     ?? 2);
+  const [bathrooms,    setBathrooms]    = useState(prefill?.bathrooms    ?? 1);
+  const [sqftRange,    setSqftRange]    = useState(prefill?.sqftRange    ?? '1000-1500');
+  const [cleaningType, setCleaningType] = useState(prefill?.cleaningType ?? 'Standard Cleaning');
   const [extraRooms,   setExtraRooms]   = useState<string[]>([]);
 
   const baseRooms = [
@@ -37,25 +62,33 @@ export function LiveRoomSetup({ onStart }: Props) {
   const stepper = (value: number, set: (v: number) => void, min: number, max: number) => (
     <div className="flex items-center gap-3">
       <button
+        type="button"
         onClick={() => set(Math.max(min, value - 1))}
-        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        className="w-8 h-8 rounded-lg bg-amber-50 text-gray-700 flex items-center justify-center hover:bg-stone-100 transition-colors disabled:opacity-40"
         disabled={value <= min}
       >−</button>
       <span className="w-4 text-center font-medium text-gray-900">{value}</span>
       <button
+        type="button"
         onClick={() => set(Math.min(max, value + 1))}
-        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        className="w-8 h-8 rounded-lg bg-amber-50 text-gray-700 flex items-center justify-center hover:bg-stone-100 transition-colors disabled:opacity-40"
         disabled={value >= max}
       >+</button>
     </div>
   );
 
+  const handleStart = () => {
+    onUnlock?.();
+    onStart({ rooms: allRooms, cleaningType, bedrooms, bathrooms, sqftRange });
+  };
+
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Set up your walkthrough</h2>
-        <p className="text-sm text-gray-500 mt-1">Tell us about your home before we start the live session.</p>
-      </div>
+    <div className="max-w-lg mx-auto space-y-4 pt-4">
+      {prefill && (
+        <p className="text-xs text-teal-600 bg-teal-50 border border-teal-100 rounded-lg px-3 py-2">
+          Pre-filled from your estimator — adjust if needed
+        </p>
+      )}
 
       {/* Bedrooms / Bathrooms */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
@@ -76,6 +109,7 @@ export function LiveRoomSetup({ onStart }: Props) {
           {SQFT_RANGES.map(r => (
             <button
               key={r}
+              type="button"
               onClick={() => setSqftRange(r)}
               className={`text-xs py-2 px-2 rounded-lg border transition-colors ${
                 sqftRange === r
@@ -94,6 +128,7 @@ export function LiveRoomSetup({ onStart }: Props) {
           {CLEANING_TYPES.map(t => (
             <button
               key={t}
+              type="button"
               onClick={() => setCleaningType(t)}
               className={`w-full text-left text-sm py-2.5 px-4 rounded-lg border transition-colors ${
                 cleaningType === t
@@ -107,11 +142,12 @@ export function LiveRoomSetup({ onStart }: Props) {
 
       {/* Extra rooms */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <p className="text-sm font-medium text-gray-700 mb-3">Additional spaces (optional)</p>
+        <p className="text-sm font-medium text-gray-700 mb-3">Additional spaces <span className="text-gray-400 font-normal">(optional)</span></p>
         <div className="flex flex-wrap gap-2">
           {['Basement', 'Garage', 'Laundry Room', 'Office', 'Dining Room'].map(r => (
             <button
               key={r}
+              type="button"
               onClick={() => toggleExtra(r)}
               className={`text-xs py-1.5 px-3 rounded-full border transition-colors ${
                 extraRooms.includes(r)
@@ -123,7 +159,7 @@ export function LiveRoomSetup({ onStart }: Props) {
         </div>
       </div>
 
-      {/* Rooms preview */}
+      {/* Room preview */}
       <div className="bg-gray-50 rounded-xl p-4">
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Rooms in this walkthrough</p>
         <div className="flex flex-wrap gap-1.5">
@@ -134,8 +170,9 @@ export function LiveRoomSetup({ onStart }: Props) {
       </div>
 
       <button
-        onClick={() => onStart({ rooms: allRooms, cleaningType, bedrooms, bathrooms, sqftRange })}
-        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 rounded-xl transition-colors"
+        type="button"
+        onClick={handleStart}
+        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3.5 rounded-xl transition-colors text-sm"
       >
         Start Live Walkthrough
       </button>

@@ -40,10 +40,11 @@ export function LiveEstimatorFlow({ onBack }: Props) {
   const [result,           setResult]           = useState<EstimatorAnalysisResult | null>(null);
   const [error,            setError]            = useState<string | null>(null);
   const [openRooms,        setOpenRooms]        = useState<Set<string>>(new Set());
+  const [paused,           setPaused]           = useState(false);
 
   const videoRef  = useRef<HTMLVideoElement>(null);
   const statusRef = useRef<'idle' | 'connecting' | 'open' | 'closed' | 'error'>('idle');
-  const { playAudio } = useSpeech();
+  const { playAudio, unlock } = useSpeech();
 
   const handleMessage = useCallback((msg: ServerMessage) => {
     switch (msg.type) {
@@ -90,7 +91,7 @@ export function LiveEstimatorFlow({ onBack }: Props) {
 
   useFrameCapture({
     videoRef,
-    enabled: phase === 'walkthrough' && status === 'open',
+    enabled: phase === 'walkthrough' && status === 'open' && !paused,
     onFrame: handleFrame,
   });
 
@@ -117,6 +118,12 @@ export function LiveEstimatorFlow({ onBack }: Props) {
     setTimeout(() => tryStart(), 300);
   }, [token, connect, send]);
 
+  const handleSkipRoom = useCallback(() => {
+    if (statusRef.current === 'open') {
+      send('skip_room', {});
+    }
+  }, [send]);
+
   const handleStop = useCallback(() => {
     disconnect();
     setPhase('setup');
@@ -125,6 +132,7 @@ export function LiveEstimatorFlow({ onBack }: Props) {
     setCompletedRooms([]);
     setFrameCount(0);
     setError(null);
+    setPaused(false);
   }, [disconnect]);
 
   // ── Auth guard ───────────────────────────────────────────────────────────────
@@ -155,7 +163,7 @@ export function LiveEstimatorFlow({ onBack }: Props) {
         </div>
       )}
 
-      {phase === 'setup' && <LiveRoomSetup onStart={handleStart} />}
+      {phase === 'setup' && <LiveRoomSetup onStart={handleStart} onUnlock={unlock} />}
 
       {phase === 'walkthrough' && homeDetails && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -169,8 +177,8 @@ export function LiveEstimatorFlow({ onBack }: Props) {
                 frameCount={frameCount}
               />
             </div>
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between px-1 gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <span className={`w-2 h-2 rounded-full ${
                   status === 'open'       ? 'bg-green-500 animate-pulse' :
                   status === 'connecting' ? 'bg-yellow-400 animate-pulse' :
@@ -180,9 +188,27 @@ export function LiveEstimatorFlow({ onBack }: Props) {
                   {status === 'open' ? 'AI connected' : status === 'connecting' ? 'Connecting…' : 'Disconnected'}
                 </span>
               </div>
-              <button onClick={handleStop} className="text-xs text-gray-400 hover:text-gray-600 underline">
-                Cancel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPaused(p => !p)}
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                    paused
+                      ? 'border-teal-500 bg-teal-50 text-teal-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {paused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  onClick={handleSkipRoom}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
+                >
+                  Skip room
+                </button>
+                <button onClick={handleStop} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
 

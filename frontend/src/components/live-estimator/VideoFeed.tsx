@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef } from 'react';
 
 interface Props {
   onStream?: (stream: MediaStream) => void;
@@ -7,7 +7,9 @@ interface Props {
 
 export const VideoFeed = forwardRef<HTMLVideoElement, Props>(({ onStream, onError }, ref) => {
   const [permissionState, setPermissionState] = useState<'requesting' | 'granted' | 'denied'>('requesting');
-  const streamRef = useRef<MediaStream | null>(null);
+  const [isFullscreen,    setIsFullscreen]    = useState(false);
+  const streamRef     = useRef<MediaStream | null>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,8 +34,7 @@ export const VideoFeed = forwardRef<HTMLVideoElement, Props>(({ onStream, onErro
     };
   }, []);
 
-  // Attach stream after the <video> element renders — ref.current is null
-  // during the 'requesting' phase because the element isn't in the DOM yet.
+  // Attach stream after the <video> element renders — ref.current is null during 'requesting'
   useEffect(() => {
     if (permissionState !== 'granted') return;
     const video = (ref as React.RefObject<HTMLVideoElement>)?.current;
@@ -42,6 +43,30 @@ export const VideoFeed = forwardRef<HTMLVideoElement, Props>(({ onStream, onErro
       video.play().catch(() => {});
     }
   }, [permissionState]);
+
+  // Track fullscreen state changes
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current as HTMLDivElement & {
+      webkitRequestFullscreen?: () => Promise<void>;
+    } | null;
+    if (!el) return;
+
+    if (!document.fullscreenElement) {
+      (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.())?.catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, []);
 
   if (permissionState === 'denied') {
     return (
@@ -67,7 +92,11 @@ export const VideoFeed = forwardRef<HTMLVideoElement, Props>(({ onStream, onErro
   }
 
   return (
-    <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative w-full bg-black rounded-2xl overflow-hidden"
+      style={{ aspectRatio: isFullscreen ? undefined : '16/9' }}
+    >
       <video
         ref={ref}
         autoPlay
@@ -75,6 +104,18 @@ export const VideoFeed = forwardRef<HTMLVideoElement, Props>(({ onStream, onErro
         muted
         className="w-full h-full object-cover"
       />
+      {/* Fullscreen toggle */}
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1.5 transition-colors"
+        aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      >
+        {isFullscreen
+          ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0l5 0M4 4l0 5M15 9l5-5m0 0l-5 0m5 0l0 5M9 15l-5 5m0 0l5 0m-5 0l0-5M15 15l5 5m0 0l-5 0m5 0l0-5" /></svg>
+          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" /></svg>
+        }
+      </button>
     </div>
   );
 });
