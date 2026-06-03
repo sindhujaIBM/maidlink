@@ -12,6 +12,9 @@ const BLUR_THRESHOLD        = 80;   // Laplacian variance below this = blurry
 const SCENE_CHANGE_THRESHOLD = 12;  // mean pixel diff above this = new scene
 const DOWNSAMPLE_W          = 160;
 const DOWNSAMPLE_H          = 90;
+// API Gateway WebSocket has a 128KB message limit — cap send frames to stay well under it
+const SEND_MAX_W            = 640;
+const SEND_MAX_H            = 360;
 
 function computeBlurScore(imageData: ImageData): number {
   // Laplacian variance on grayscale: higher = sharper
@@ -102,15 +105,16 @@ export function useFrameCapture({
       // Throttle sends
       if (now - lastSentAtRef.current < minSendIntervalMs) return;
 
-      // Capture full-res frame
+      // Capture at capped resolution to stay under API GW's 128KB WebSocket message limit
       if (!captureCanvasRef.current) {
         captureCanvasRef.current = document.createElement('canvas');
       }
-      const cc   = captureCanvasRef.current;
-      cc.width   = video.videoWidth;
-      cc.height  = video.videoHeight;
+      const cc = captureCanvasRef.current;
+      const scale = Math.min(1, SEND_MAX_W / video.videoWidth, SEND_MAX_H / video.videoHeight);
+      cc.width   = Math.round(video.videoWidth  * scale);
+      cc.height  = Math.round(video.videoHeight * scale);
       const cCtx = cc.getContext('2d')!;
-      cCtx.drawImage(video, 0, 0);
+      cCtx.drawImage(video, 0, 0, cc.width, cc.height);
 
       cc.toBlob((blob) => {
         if (!blob) return;
@@ -122,7 +126,7 @@ export function useFrameCapture({
           lastSentAtRef.current    = Date.now();
         };
         reader.readAsDataURL(blob);
-      }, 'image/jpeg', 0.85);
+      }, 'image/jpeg', 0.7);
     }, intervalMs);
   }, [videoRef, intervalMs, minSendIntervalMs]);
 
