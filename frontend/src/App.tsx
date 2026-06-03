@@ -22,8 +22,8 @@ import { AdminEstimatorPage }  from './pages/admin/AdminEstimatorPage';
 import { AdminUsersPage }      from './pages/admin/AdminUsersPage';
 import { DevLoginPage }        from './pages/DevLoginPage';
 import { EstimatorPage }       from './pages/EstimatorPage';
-import { EstimatorHistoryPage } from './pages/EstimatorHistoryPage';
-import { MaidApplicationPage } from './pages/MaidApplicationPage';
+import { EstimatorHistoryPage }  from './pages/EstimatorHistoryPage';
+import { MaidApplicationPage }   from './pages/MaidApplicationPage';
 
 export default function App() {
   return (
@@ -33,6 +33,7 @@ export default function App() {
           {/* Public */}
           <Route path="/"               element={<HomePage />} />
           <Route path="/estimate"       element={<EstimatorPage />} />
+          <Route path="/estimate/live"  element={<Navigate to="/estimate" replace />} />
           <Route path="/become-a-maid"  element={<MaidApplicationPage />} />
           <Route path="/auth/callback"  element={<AuthCallback />} />
           <Route path="/admin/login"    element={<AdminLoginPage />} />
