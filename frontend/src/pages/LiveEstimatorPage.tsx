@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { LiveRoomSetup } from '../components/live-estimator/LiveRoomSetup';
 import { VideoFeed } from '../components/live-estimator/VideoFeed';
@@ -25,7 +25,8 @@ interface HomeDetails {
 const WS_BASE = import.meta.env.VITE_LIVE_WS_URL ?? 'ws://localhost:3105';
 
 export function LiveEstimatorPage() {
-  const { token } = useAuth();
+  const { token, isLoading, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   const [phase,            setPhase]            = useState<Phase>('setup');
   const [homeDetails,      setHomeDetails]      = useState<HomeDetails | null>(null);
@@ -136,6 +137,24 @@ export function LiveEstimatorPage() {
     setFrameCount(0);
     setError(null);
   }, [disconnect]);
+
+  // ── Auth guard ───────────────────────────────────────────────────────────────
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <Layout hideChat>
+        <div className="max-w-md mx-auto px-4 py-20 text-center">
+          <p className="text-gray-700 font-medium mb-2">Sign in to use the Live Estimator</p>
+          <p className="text-sm text-gray-500 mb-6">You need an account to start a live walkthrough.</p>
+          <button
+            onClick={() => navigate('/login', { state: { from: '/estimate/live' } })}
+            className="bg-teal-600 hover:bg-teal-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            Sign in with Google
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
