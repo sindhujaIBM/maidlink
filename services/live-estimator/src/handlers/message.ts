@@ -131,8 +131,8 @@ async function handleFrame(
 
   if (accumulatedText) {
     await push({ type: 'guidance_end' });
-    const audioBase64 = await synthesizeSpeech(accumulatedText).catch(() => null);
-    if (audioBase64) await push({ type: 'audio', data: audioBase64, mimeType: 'audio/mpeg' });
+    // No per-frame Polly — frame guidance text is shown in the overlay.
+    // Voice fires only for tool-use events (angle_request, room_complete) and lifecycle messages.
   }
 
   // Persist updated conversation history (trim to last 20 messages to stay within token limits)
