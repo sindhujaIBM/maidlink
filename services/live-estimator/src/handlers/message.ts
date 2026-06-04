@@ -24,6 +24,7 @@ interface FrameAction {
 
 interface SkipRoomAction {
   action: 'skip_room';
+  room:   string;
 }
 
 type ClientMessage = StartAction | FrameAction | SkipRoomAction;
@@ -54,7 +55,7 @@ export const handler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {
   } else if (body.action === 'frame') {
     await handleFrame(body, session, connectionId, push);
   } else if (body.action === 'skip_room') {
-    await handleSkipRoom(session, connectionId, push);
+    await handleSkipRoom(body, session, connectionId, push);
   }
 
   return { statusCode: 200, body: 'ok' };
@@ -76,8 +77,7 @@ async function handleStart(
     sqftRange:    msg.sqftRange,
   });
 
-  const firstRoom   = msg.rooms[0] ?? 'the first room';
-  const welcomeText = `Hi! I'm your AI cleaning estimator. Let's walk through your home together. Start with your ${firstRoom} — hold your phone steady and show me an overview of the room.`;
+  const welcomeText = `Hi! I'm your AI cleaning estimator. Tap any room on the list to start — hold your phone steady and show me an overview of that room.`;
 
   await push({ type: 'guidance_chunk', text: welcomeText });
   await push({ type: 'guidance_end' });
@@ -94,6 +94,12 @@ async function handleFrame(
   connectionId: string,
   push: (d: unknown) => Promise<void>,
 ) {
+  // Track which room is currently being scanned
+  if (session.currentRoom !== msg.room) {
+    await updateSession(connectionId, { currentRoom: msg.room });
+    session.currentRoom = msg.room;
+  }
+
   // Append frame as image content block to conversation history
   const frameMessage: Message = {
     role:    'user',
@@ -120,7 +126,7 @@ async function handleFrame(
 
     if (event.type === 'tool_use' && event.tool) {
       await push({ type: 'guidance_end' });
-      await handleToolUse(event.tool.name, event.tool.input, session, connectionId, push);
+      await handleToolUse(event.tool.name, event.tool.input, session, connectionId, push, msg.room);
       toolResult = { name: event.tool.name, summaryForHistory: JSON.stringify(event.tool.input) };
     }
 
@@ -152,12 +158,16 @@ async function handleFrame(
 // ── Skip room ─────────────────────────────────────────────────────────────────
 
 async function handleSkipRoom(
+  body: SkipRoomAction,
   session: LiveSession,
   connectionId: string,
   push: (d: unknown) => Promise<void>,
 ) {
-  const skippedRoom = session.rooms[session.currentRoomIndex];
-  if (!skippedRoom) return;
+  const skippedRoom = body.room;
+  if (!skippedRoom || session.rooms.indexOf(skippedRoom) === -1) return;
+
+  // Don't skip an already-completed room
+  if (session.roomSummaries.some(s => s.room === skippedRoom)) return;
 
   const summary: RoomSummary = {
     room:             skippedRoom,
@@ -168,23 +178,25 @@ async function handleSkipRoom(
   };
 
   const updatedSummaries = [...session.roomSummaries, summary];
-  const nextIndex        = session.currentRoomIndex + 1;
-  const nextRoom         = session.rooms[nextIndex];
-
-  await updateSession(connectionId, {
-    roomSummaries:    updatedSummaries,
-    currentRoomIndex: nextIndex,
-  });
-
-  const msg = nextRoom
-    ? `Got it — skipped ${skippedRoom}. Let's move to the ${nextRoom}. Show me an overview when you're ready.`
-    : `Skipped ${skippedRoom}. That's all rooms! Give me a moment to put together your estimate.`;
+  await updateSession(connectionId, { roomSummaries: updatedSummaries });
 
   await push({ type: 'room_complete', room: skippedRoom, summary });
-  await push({ type: 'guidance_chunk', text: msg });
-  await push({ type: 'guidance_end' });
-  const audio = await synthesizeSpeech(msg).catch(() => null);
-  if (audio) await push({ type: 'audio', data: audio, mimeType: 'audio/mpeg' });
+
+  const allDone = updatedSummaries.length >= session.rooms.length;
+  if (allDone) {
+    const msg = `Skipped ${skippedRoom}. That's all rooms! Give me a moment to put together your estimate.`;
+    await push({ type: 'guidance_chunk', text: msg });
+    await push({ type: 'guidance_end' });
+    const audio = await synthesizeSpeech(msg).catch(() => null);
+    if (audio) await push({ type: 'audio', data: audio, mimeType: 'audio/mpeg' });
+    await persistAndEmitEstimate({}, { ...session, roomSummaries: updatedSummaries }, connectionId, push);
+  } else {
+    const msg = `Got it — skipped ${skippedRoom}. Pick your next room from the list.`;
+    await push({ type: 'guidance_chunk', text: msg });
+    await push({ type: 'guidance_end' });
+    const audio = await synthesizeSpeech(msg).catch(() => null);
+    if (audio) await push({ type: 'audio', data: audio, mimeType: 'audio/mpeg' });
+  }
 }
 
 // ── Tool use dispatcher ───────────────────────────────────────────────────────
@@ -195,6 +207,7 @@ async function handleToolUse(
   session: LiveSession,
   connectionId: string,
   push: (d: unknown) => Promise<void>,
+  currentRoom: string,
 ) {
   if (toolName === 'request_angle') {
     const instruction = input.instruction as string;
@@ -204,31 +217,37 @@ async function handleToolUse(
   }
 
   if (toolName === 'mark_room_complete') {
+    // Don't double-complete a room
+    if (session.roomSummaries.some(s => s.room === currentRoom)) return;
+
     const summary: RoomSummary = {
-      room:             session.rooms[session.currentRoomIndex] ?? 'Unknown',
+      room:             currentRoom || 'Unknown',
       condition:        input.condition as string,
       estimatedMinutes: input.estimatedMinutes as number,
       observations:     input.observations as string,
       priorityTasks:    input.priorityTasks as string[],
     };
     const updatedSummaries = [...session.roomSummaries, summary];
-    const nextIndex        = session.currentRoomIndex + 1;
-    const nextRoom         = session.rooms[nextIndex];
+    const allDone          = updatedSummaries.length >= session.rooms.length;
 
-    await updateSession(connectionId, {
-      roomSummaries:    updatedSummaries,
-      currentRoomIndex: nextIndex,
-    });
-
-    const msg = nextRoom
-      ? `Great — ${summary.room} is done! Now let's move to the ${nextRoom}. Show me an overview when you're ready.`
-      : `Perfect — that's all the rooms! Give me a moment to put together your estimate.`;
+    await updateSession(connectionId, { roomSummaries: updatedSummaries });
 
     await push({ type: 'room_complete', room: summary.room, summary });
-    await push({ type: 'guidance_chunk', text: msg });
-    await push({ type: 'guidance_end' });
-    const audio = await synthesizeSpeech(msg).catch(() => null);
-    if (audio) await push({ type: 'audio', data: audio, mimeType: 'audio/mpeg' });
+
+    if (allDone) {
+      const msg = `Perfect — that's all the rooms! Give me a moment to put together your estimate.`;
+      await push({ type: 'guidance_chunk', text: msg });
+      await push({ type: 'guidance_end' });
+      const audio = await synthesizeSpeech(msg).catch(() => null);
+      if (audio) await push({ type: 'audio', data: audio, mimeType: 'audio/mpeg' });
+      await persistAndEmitEstimate(input, { ...session, roomSummaries: updatedSummaries }, connectionId, push);
+    } else {
+      const msg = `Great — ${summary.room} is done! Pick your next room from the list.`;
+      await push({ type: 'guidance_chunk', text: msg });
+      await push({ type: 'guidance_end' });
+      const audio = await synthesizeSpeech(msg).catch(() => null);
+      if (audio) await push({ type: 'audio', data: audio, mimeType: 'audio/mpeg' });
+    }
   }
 
   if (toolName === 'generate_estimate') {

@@ -30,17 +30,17 @@ const WS_BASE = import.meta.env.VITE_LIVE_WS_URL ?? 'ws://localhost:3105';
 export function LiveEstimatorFlow({ onBack }: Props) {
   const { token, isLoading, isAuthenticated } = useAuth();
 
-  const [phase,            setPhase]            = useState<Phase>('setup');
-  const [homeDetails,      setHomeDetails]      = useState<HomeDetails | null>(null);
-  const [guidanceText,     setGuidanceText]     = useState('');
-  const [isStreaming,      setIsStreaming]       = useState(false);
-  const [currentRoomIndex, setCurrentRoomIndex] = useState(0);
-  const [completedRooms,   setCompletedRooms]   = useState<string[]>([]);
-  const [frameCount,       setFrameCount]       = useState(0);
-  const [result,           setResult]           = useState<EstimatorAnalysisResult | null>(null);
-  const [error,            setError]            = useState<string | null>(null);
-  const [openRooms,        setOpenRooms]        = useState<Set<string>>(new Set());
-  const [paused,           setPaused]           = useState(false);
+  const [phase,          setPhase]          = useState<Phase>('setup');
+  const [homeDetails,    setHomeDetails]    = useState<HomeDetails | null>(null);
+  const [guidanceText,   setGuidanceText]   = useState('');
+  const [isStreaming,    setIsStreaming]     = useState(false);
+  const [currentRoom,    setCurrentRoom]    = useState<string | null>(null);
+  const [completedRooms, setCompletedRooms] = useState<string[]>([]);
+  const [frameCount,     setFrameCount]     = useState(0);
+  const [result,         setResult]         = useState<EstimatorAnalysisResult | null>(null);
+  const [error,          setError]          = useState<string | null>(null);
+  const [openRooms,      setOpenRooms]      = useState<Set<string>>(new Set());
+  const [paused,         setPaused]         = useState(false);
 
   const videoRef  = useRef<HTMLVideoElement>(null);
   const statusRef = useRef<'idle' | 'connecting' | 'open' | 'closed' | 'error'>('idle');
@@ -64,7 +64,7 @@ export function LiveEstimatorFlow({ onBack }: Props) {
       case 'room_complete':
         if (msg.room) {
           setCompletedRooms(prev => [...prev, msg.room!]);
-          setCurrentRoomIndex(prev => prev + 1);
+          setCurrentRoom(null);  // user picks next room
           setGuidanceText('');
         }
         break;
@@ -81,8 +81,6 @@ export function LiveEstimatorFlow({ onBack }: Props) {
   const { status, connect, send, disconnect } = useWebSocket({ onMessage: handleMessage });
   statusRef.current = status;
 
-  const currentRoom = homeDetails?.rooms[currentRoomIndex] ?? '';
-
   const handleFrame = useCallback((base64: string, mediaType: string) => {
     if (statusRef.current !== 'open' || !currentRoom) return;
     send('frame', { room: currentRoom, data: base64, mediaType });
@@ -91,7 +89,7 @@ export function LiveEstimatorFlow({ onBack }: Props) {
 
   useFrameCapture({
     videoRef,
-    enabled: phase === 'walkthrough' && status === 'open' && !paused,
+    enabled: phase === 'walkthrough' && status === 'open' && !paused && !!currentRoom,
     onFrame: handleFrame,
   });
 
@@ -119,16 +117,16 @@ export function LiveEstimatorFlow({ onBack }: Props) {
   }, [token, connect, send]);
 
   const handleSkipRoom = useCallback(() => {
-    if (statusRef.current === 'open') {
-      send('skip_room', {});
+    if (statusRef.current === 'open' && currentRoom) {
+      send('skip_room', { room: currentRoom });
     }
-  }, [send]);
+  }, [send, currentRoom]);
 
   const handleStop = useCallback(() => {
     disconnect();
     setPhase('setup');
     setGuidanceText('');
-    setCurrentRoomIndex(0);
+    setCurrentRoom(null);
     setCompletedRooms([]);
     setFrameCount(0);
     setError(null);
@@ -170,12 +168,20 @@ export function LiveEstimatorFlow({ onBack }: Props) {
           <div className="lg:col-span-2 space-y-3">
             <div className="relative">
               <VideoFeed ref={videoRef} onError={err => setError(`Camera error: ${err}`)} />
-              <AgentOverlay
-                text={guidanceText}
-                isStreaming={isStreaming}
-                currentRoom={currentRoom}
-                frameCount={frameCount}
-              />
+              {currentRoom
+                ? <AgentOverlay
+                    text={guidanceText}
+                    isStreaming={isStreaming}
+                    currentRoom={currentRoom}
+                    frameCount={frameCount}
+                  />
+                : <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-black/60 text-white rounded-2xl px-6 py-4 text-center max-w-xs">
+                      <p className="font-medium mb-1">Pick a room to scan</p>
+                      <p className="text-sm opacity-75">Tap any room in the list to start scanning it.</p>
+                    </div>
+                  </div>
+              }
             </div>
             <div className="flex items-center justify-between px-1 gap-2">
               <div className="flex items-center gap-1.5 shrink-0">
@@ -189,22 +195,26 @@ export function LiveEstimatorFlow({ onBack }: Props) {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPaused(p => !p)}
-                  className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                    paused
-                      ? 'border-teal-500 bg-teal-50 text-teal-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  {paused ? 'Resume' : 'Pause'}
-                </button>
-                <button
-                  onClick={handleSkipRoom}
-                  className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
-                >
-                  Skip room
-                </button>
+                {currentRoom && (
+                  <>
+                    <button
+                      onClick={() => setPaused(p => !p)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                        paused
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {paused ? 'Resume' : 'Pause'}
+                    </button>
+                    <button
+                      onClick={handleSkipRoom}
+                      className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
+                    >
+                      Skip room
+                    </button>
+                  </>
+                )}
                 <button onClick={handleStop} className="text-xs text-gray-400 hover:text-gray-600 underline">
                   Cancel
                 </button>
@@ -215,8 +225,9 @@ export function LiveEstimatorFlow({ onBack }: Props) {
           <div className="space-y-4">
             <RoomProgress
               rooms={homeDetails.rooms}
-              currentRoomIndex={currentRoomIndex}
+              currentRoom={currentRoom}
               completedRooms={completedRooms}
+              onSelectRoom={room => { setCurrentRoom(room); setGuidanceText(''); setPaused(false); }}
             />
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
               <p className="text-xs font-medium text-blue-700 mb-1">Tips</p>

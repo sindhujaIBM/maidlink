@@ -46,6 +46,7 @@ export const handler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {
     bathrooms:           1,
     sqftRange:           '500-1000',
     currentRoomIndex:    0,
+    currentRoom:         '',
     roomSummaries:       [],
     conversationHistory: [],
     frameCount:          0,
