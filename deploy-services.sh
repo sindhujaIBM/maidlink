@@ -35,6 +35,7 @@ export GOOGLE_CLIENT_SECRET=$(aws ssm get-parameter \
   --name /maidlink/prod/google-client-secret --with-decryption \
   --region ca-west-1 --query Parameter.Value --output text)
 
+
 # ── Lambda services ───────────────────────────────────────────────────────────
 deploy_service() {
   echo "Deploying $1..."
@@ -46,6 +47,21 @@ if [[ "$TARGET" == "all" ]]; then
   deploy_service users
   deploy_service booking
   deploy_service admin
+  deploy_service live-estimator
+
+  # Read WebSocket URL from CloudFormation output, store in SSM, export for frontend build
+  echo "Fetching live estimator WebSocket URL..."
+  export VITE_LIVE_WS_URL=$(aws cloudformation describe-stacks \
+    --stack-name maidlink-live-estimator-prod \
+    --region ca-west-1 \
+    --query 'Stacks[0].Outputs[?OutputKey==`ServiceEndpointWebsocket`].OutputValue' \
+    --output text)
+  aws ssm put-parameter \
+    --name /maidlink/prod/live-ws-url \
+    --value "$VITE_LIVE_WS_URL" \
+    --type String \
+    --region ca-west-1 \
+    --overwrite || true
 else
   deploy_service "$TARGET"
 fi

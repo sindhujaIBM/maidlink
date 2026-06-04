@@ -11,6 +11,8 @@ export default defineConfig({
       '/api/users':   { target: 'http://localhost:3002', rewrite: path => path.replace(/^\/api\/users/, '') },
       '/api/booking': { target: 'http://localhost:3003', rewrite: path => path.replace(/^\/api\/booking/, '') },
       '/api/admin':   { target: 'http://localhost:3004', rewrite: path => path.replace(/^\/api\/admin/, '') },
+      // WebSocket proxy for live estimator (dev only — VITE_LIVE_WS_URL overrides in prod)
+      '/ws/live':     { target: 'ws://localhost:3105', ws: true, rewrite: path => path.replace(/^\/ws\/live/, '') },
     },
   },
   build: {

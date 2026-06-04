@@ -81,11 +81,11 @@ PHOTO COVERAGE: if fewer than 3 distinct angles are visible for a room, add a co
 
 UPGRADE RECOMMENDATION RULES:
 - Only recommend an upgrade if there is clear visual evidence (e.g. heavy grease, soap scum buildup, significant grime)
-- Recommend the minimum necessary upgrade: Standard → Deep, or Deep → Move-Out/Move-In
 - Never recommend a downgrade
 - benefits[] must list specific tasks the upgraded service adds that are relevant to what you observed (3-5 items)
 - Omit upgradeRecommendation entirely if the requested cleaning type is appropriate
-- VACANCY DETECTION: If the requested service is Standard Cleaning or Deep Cleaning, but the majority of rooms appear vacant (no furniture, bare floors, empty walls, no personal belongings visible), recommend upgrading to Move-Out/Move-In Cleaning. Set reason to explain that vacant properties require a full interior reset (inside cabinets, inside appliances, baseboards, all hidden surfaces) to reach a move-in ready standard. Set suggestedType to "Move-Out/Move-In Cleaning".
+- STANDARD → DEEP ONLY: Only recommend upgrading to Deep Cleaning if the requested service is Standard Cleaning AND photos show clear evidence of buildup, grime, or soiling that Standard Cleaning does not cover. If the user already selected Deep Cleaning or Move-Out/Move-In Cleaning, never recommend an upgrade — omit upgradeRecommendation entirely.
+- VACANCY DETECTION: If the requested service is Standard Cleaning (only), but the majority of rooms appear vacant (no furniture, bare floors, empty walls, no personal belongings visible), recommend upgrading to Move-Out/Move-In Cleaning. Set reason to explain that vacant properties require a full interior reset (inside cabinets, inside appliances, baseboards, all hidden surfaces) to reach a move-in ready standard. Set suggestedType to "Move-Out/Move-In Cleaning". If the user already selected Deep Cleaning, do NOT apply this rule — omit upgradeRecommendation.
 - FURNISHED MISMATCH: If the requested service is Move-Out/Move-In Cleaning but rooms appear furnished or occupied (furniture present, personal belongings visible), do NOT recommend a downgrade. Instead, note in conditionAssessment that Move-Out/Move-In cleaning is designed for vacant properties and set confidenceNote to: "Rooms appear furnished — Move-Out/Move-In cleaning applies to fully vacant properties. Please confirm all furniture and belongings will be removed before the cleaning date."
 
 OUTPUT: respond ONLY with valid JSON, no markdown fences:

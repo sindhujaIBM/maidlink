@@ -196,6 +196,7 @@ These are known gaps in the current architecture — not blocking for MVP but im
 - ✅ AI photo estimator — 3-step wizard, per-room analysis, Nova Lite (us-west-2)
 - ✅ AI-generated cleaning checklist — per home, per room, from photos, downloadable
 - ✅ Smart scheduling chat widget
+- ✅ **Live video estimator** — user walks through home on camera; Claude Haiku 4.5 agent (Bedrock `ConverseStreamCommand` + tool use) guides them room by room; Amazon Polly Neural voice; API Gateway WebSocket API + DynamoDB session state; client-side blur/scene-change detection; separate 2-use lifetime limit; results saved to estimator history with `source: 'live'`; route `/estimate/live`, mode-picker on `/estimate`
 
 ### Ready to Build
 - **Post-cleaning report** — Maid uploads before/after photos; AI generates a short summary report (what was cleaned, condition change) emailed to the customer. Low effort given existing Bedrock + S3 setup.

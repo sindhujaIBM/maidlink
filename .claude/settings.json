@@ -10,7 +10,11 @@
       "Read(//private/tmp/**)",
       "Bash(cp \"/Users/sindhuja/.claude/projects/-Users-sindhuja-Desktop-maidlink/0ae56804-9153-4a59-ab02-51c712417d71/tool-results/webfetch-1776447201521-a0ksun.bin\" design2.gz)",
       "Bash(mkdir -p design_bundle2)",
-      "Bash(tar -xf design2.gz -C design_bundle2)"
+      "Bash(tar -xf design2.gz -C design_bundle2)",
+      "Read(//Users/sindhuja/Desktop/maidlink-redesign/**)",
+      "Bash(find /Users/sindhuja/Desktop/maidlink-step-1 -type f | sort)",
+      "Read(//Users/sindhuja/Desktop/maidlink-step-1/**)",
+      "Bash(open http://localhost:5173/estimate)"
     ]
   },
   "hooks": {

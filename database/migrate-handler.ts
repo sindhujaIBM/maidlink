@@ -283,6 +283,15 @@ ALTER TABLE estimator_analyses
   ADD COLUMN IF NOT EXISTS admin_feedback JSONB;
     `,
   },
+  {
+    name: '020_estimator_analyses_source.sql',
+    sql: `
+ALTER TABLE estimator_analyses
+  ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'photo';
+CREATE INDEX IF NOT EXISTS idx_estimator_analyses_user_source
+  ON estimator_analyses(user_id, source);
+    `,
+  },
 ];
 
 export const handler = async (): Promise<{ statusCode: number; body: string }> => {

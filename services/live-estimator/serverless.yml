@@ -1,0 +1,114 @@
+service: maidlink-live-estimator
+frameworkVersion: '3'
+useDotenv: true
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ca-west-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 29
+  websocketsApiRouteSelectionExpression: '$request.body.action'
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    DYNAMO_TABLE: maidlink-live-sessions-${self:provider.stage}
+    DB_HOST: ${env:DB_HOST, 'localhost'}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_NAME: ${env:DB_NAME, 'maidlink'}
+    DB_USER: ${env:DB_USER, 'maidlink_dev'}
+    DB_PASSWORD: ${env:DB_PASSWORD}
+    DB_SSL: ${env:DB_SSL, 'false'}
+    JWT_SECRET: ${env:JWT_SECRET}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+  vpc:
+    securityGroupIds:
+      - sg-055801edf871f4e60
+    subnetIds:
+      - subnet-0a8738edb8eff6309
+      - subnet-06ab0c4c50c4a06bc
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - arn:aws:dynamodb:ca-west-1:946839354953:table/maidlink-live-sessions-*
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModelWithResponseStream
+            - bedrock:InvokeModel
+          Resource:
+            - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+            - arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
+        - Effect: Allow
+          Action:
+            - polly:SynthesizeSpeech
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - execute-api:ManageConnections
+          Resource:
+            - arn:aws:execute-api:ca-west-1:946839354953:*/@connections/*
+
+functions:
+  connect:
+    handler: src/handlers/connect.handler
+    events:
+      - websocket:
+          route: $connect
+
+  disconnect:
+    handler: src/handlers/disconnect.handler
+    events:
+      - websocket:
+          route: $disconnect
+
+  message:
+    handler: src/handlers/message.handler
+    timeout: 29
+    events:
+      - websocket:
+          route: $default
+
+resources:
+  Resources:
+    LiveSessionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMO_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: connectionId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: connectionId
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node20
+    platform: node
+    external:
+      - pg-native
+  serverless-offline:
+    httpPort: 3005
+    websocketPort: 3105
+    lambdaPort: 3205
+    host: localhost
+    noPrependStageInUrl: true
+    dotenv: ../../.env

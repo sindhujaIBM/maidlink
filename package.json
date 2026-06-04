@@ -14,7 +14,7 @@
     "database"
   ],
   "scripts": {
-    "dev": "npm run build --workspace=packages/shared && concurrently -n db,auth,users,booking,admin,web -c bgBlue,cyan,green,yellow,magenta,white \"npm run db:up\" \"npm run offline --workspace=services/auth\" \"npm run offline --workspace=services/users\" \"npm run offline --workspace=services/booking\" \"npm run offline --workspace=services/admin\" \"npm run dev --workspace=frontend\"",
+    "dev": "npm run build --workspace=packages/shared && concurrently -n db,auth,users,booking,admin,live,web -c bgBlue,cyan,green,yellow,magenta,bgMagenta,white \"npm run db:up\" \"npm run offline --workspace=services/auth\" \"npm run offline --workspace=services/users\" \"npm run offline --workspace=services/booking\" \"npm run offline --workspace=services/admin\" \"npm run offline --workspace=services/live-estimator\" \"npm run dev --workspace=frontend\"",
     "db:up": "docker-compose up -d postgres",
     "db:down": "docker-compose down",
     "db:logs": "docker-compose logs -f postgres",

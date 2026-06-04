@@ -21,17 +21,18 @@ npm run test:watch   # watch mode during development
 - **DB:** Aurora Serverless v2 (PostgreSQL 15.10), direct Lambda connection
 - **Auth:** Google OAuth 2.0 → HS256 JWT (24h expiry)
 - **Storage:** S3 private bucket + pre-signed URLs
-- **AI:** Amazon Nova Lite (`us.amazon.nova-lite-v1:0`) via Bedrock us-west-2 — Haiku fallback removed (Anthropic use-case form not submitted for this account; `ResourceNotFoundException` if used)
+- **AI:** Amazon Nova Lite (`us.amazon.nova-lite-v1:0`) via Bedrock `us-west-2` for the photo estimator. Claude Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) via Bedrock `us-east-1` is also available — use cross-region inference profile; Bedrock client must target `us-east-1` (not `ca-west-1` or `us-west-2`)
 - **Region:** `ca-west-1`
 
 ## Service Ports (local)
 | Service  | HTTP  | Lambda |
 |----------|-------|--------|
-| Auth     | 3001  | 3101   |
-| Users    | 3002  | 3102   |
-| Booking  | 3003  | 3103   |
-| Admin    | 4004  | 4104   |
-| Frontend | 5173  | —      |
+| Auth           | 3001  | 3101   |
+| Users          | 3002  | 3102   |
+| Booking        | 3003  | 3103   |
+| Admin          | 4004  | 4104   |
+| Live Estimator | 3005  | 3205 (WS: 3105) |
+| Frontend       | 5173  | —      |
 
 ## FEATURES.md
 `FEATURES.md` is the living feature registry. After implementing any feature — no matter how small — update it:
@@ -51,7 +52,7 @@ npm run test:watch   # watch mode during development
 - Always use `withAuth` from `@maidlink/shared` to protect Lambda handlers
 - S3 IAM Resource in serverless.yml must use `${env:PHOTOS_BUCKET}` — never a hardcoded wildcard pattern that won't match the deployed bucket name
 - Amazon Nova models require cross-region inference profile IDs: `us.amazon.nova-lite-v1:0` (not `amazon.nova-lite-v1:0`)
-- Bedrock IAM needs both `::foundation-model/*` and `:*:inference-profile/*` ARNs, and region must be `*` (not `us-west-2`) — inference profiles route dynamically across us-east-1/us-east-2/us-west-2
+- Bedrock IAM needs both `::foundation-model/*` and `:*:inference-profile/*` ARNs, and region must be `*` — inference profiles route dynamically across us-east-1/us-east-2/us-west-2. Applies to both Nova Lite (us-west-2 client) and Claude Haiku 4.5 (us-east-1 client)
 - S3 presigned PUT URLs must NOT include `ContentLength` in the PutObjectCommand — S3 enforces an exact byte match and will reject any upload that doesn't match, causing silent failures
 - `pg` error code `23P01` = exclusion_violation → return 409 Conflict (used for no-double-booking constraint)
 - `btree_gist` extension must exist (migration 001) for TSRANGE EXCLUDE constraint
